@@ -44,7 +44,7 @@ module. Note that there have been some extensions since the publication of that 
 > [[pdf (preprint)](https://arxiv.org/pdf/1903.08942)]
 
 The features and Biased MCTS described in this paper are implemented in the [Features](https://github.com/Ludeme/LudiiAI/tree/master/Features)
-and [Features](https://github.com/Ludeme/LudiiAI/tree/master/AI) modules, respectively. Note that the feature discovery and training process
+and [AI](https://github.com/Ludeme/LudiiAI/tree/master/AI) modules, respectively. Note that the feature discovery and training process
 are not yet fully included; we hope to move those over into these modules at a later date.
 
 > Dennis J.N.J. Soemers, Éric Piette, Matthew Stephenson, and Cameron Browne (2019). 
@@ -53,7 +53,7 @@ are not yet fully included; we hope to move those over into these modules at a l
 > [[pdf](http://www.ieee-cog.org/2019/papers/paper_91.pdf)]
 
 The features, MCTS agents and softmax policies used in this paper are implemented in the [Features](https://github.com/Ludeme/LudiiAI/tree/master/Features)
-and [Features](https://github.com/Ludeme/LudiiAI/tree/master/AI) modules. Note that the training processes are not yet fully included;
+and [AI](https://github.com/Ludeme/LudiiAI/tree/master/AI) modules. Note that the training processes are not yet fully included;
 we hope to move those over into these modules at a later date.
 
 > Dennis J.N.J. Soemers, Éric Piette, Matthew Stephenson, and Cameron Browne (2020). 
@@ -62,7 +62,7 @@ we hope to move those over into these modules at a later date.
 > [[pdf preprint](https://arxiv.org/pdf/2006.00283)]
 
 The features and different MCTS agents used in this paper are implemented in the [Features](https://github.com/Ludeme/LudiiAI/tree/master/Features)
-and [Features](https://github.com/Ludeme/LudiiAI/tree/master/AI) modules, respectively. Note that the training processes
+and [AI](https://github.com/Ludeme/LudiiAI/tree/master/AI) modules, respectively. Note that the training processes
 are not yet fully included; we hope to move those over into these modules at a later date.
 
 ## Contact Info
