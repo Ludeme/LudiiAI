@@ -72,6 +72,10 @@ requesting additional functionality, or asking other questions about AI
 development for Ludii, is [creating new Issues on the github repository](https://github.com/Ludeme/LudiiAI/issues).
 Alternatively, the following email address may be used: `ludii(dot)games(at)gmail(dot)com`.
 
+## Changelog
+
+- 26 July, 2020: Initial publication of this repo, source code matches the public Ludii v1.0.0 release.
+
 ## Acknowledgements
 
 This repository is part of the European Research Council-funded Digital Ludeme Project (ERC Consolidator Grant \#771292), being run by Cameron Browne at Maastricht University's Department of Data Science and Knowledge Engineering. 
