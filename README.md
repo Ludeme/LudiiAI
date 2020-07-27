@@ -22,6 +22,7 @@ and the [Ludii tutorials](https://ludiitutorials.readthedocs.io)).
 ## Included AI Algorithms
 
 The following AI algorithms are included:
+- **Random**.
 - **Flat Monte-Carlo search**.
 - **Monte-Carlo Tree Search (MCTS)**, with various options for customisation. This includes a standard UCT,
 a PUCT selection phase (as in AlphaZero, albeit with a simpler function approximator for the policy, 
@@ -29,6 +30,8 @@ and no value head), GRAVE, tree reuse, etc.
 - **Alpha-Beta Search**, with iterative deepening and options for various heuristics. Uses a paranoid
 search in games with more than two players, and re-starts with a Max<sup>N</sup> search if there is
 still time left and the paranoid search was run to completion.
+- **Ludii AI**: an agent that uses hints written in the metadata of game files to automatically select
+the "best" agent from all the above (based on our own experiments) for the current game and options.
 
 ## Related Papers
 
