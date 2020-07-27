@@ -61,7 +61,7 @@ we hope to move those over into these modules at a later date.
 
 > Dennis J.N.J. Soemers, Éric Piette, Matthew Stephenson, and Cameron Browne (2020). 
 > “Manipulating the Distributions of Experience used for Self-Play Learning in Expert Iteration”. 
-> In 2020 IEEE Conference on Games (CoG 2020), to appear. 
+> In *2020 IEEE Conference on Games (CoG 2020)*, to appear. 
 > [[pdf preprint](https://arxiv.org/pdf/2006.00283)]
 
 The features and different MCTS agents used in this paper are implemented in the [Features](https://github.com/Ludeme/LudiiAI/tree/master/Features)
