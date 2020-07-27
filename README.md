@@ -77,7 +77,7 @@ Alternatively, the following email address may be used: `ludii(dot)games(at)gmai
 
 ## Changelog
 
-- 26 July, 2020: Initial publication of this repo, source code matches the public Ludii v1.0.0 release.
+- 27 July, 2020: Initial publication of this repo, source code matches the public Ludii v1.0.0 release.
 
 ## Acknowledgements
 
