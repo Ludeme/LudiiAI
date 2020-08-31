@@ -219,13 +219,7 @@ public final class OpenLoopNode extends BaseNode
 	private void updateLegalMoveDependencies(final boolean root)
 	{
 		final Context context = root ? deterministicContext : currentItContext;
-		
 		currentLegalMoves = new FastArrayList<Move>(context.game().moves(context).moves());
-		
-		if (currentLegalMoves.isEmpty())
-		{
-			currentLegalMoves.add(Game.createPassMove(context));
-		}
 		
 		if (root)
 		{

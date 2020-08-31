@@ -222,12 +222,6 @@ public class AlphaBetaSearch extends ExpertPolicy
 		final int numPlayers = game.players().count();
 		currentRootMoves = new FastArrayList<Move>(game.moves(context).moves());
 		
-		if (currentRootMoves.isEmpty())
-		{
-			// force pass action
-			currentRootMoves.add(Game.createPassMove(context));
-		}
-		
 		// Create a shuffled version of list of moves (random tie-breaking)
 		final FastArrayList<Move> tempMovesList = new FastArrayList<Move>(currentRootMoves);
 		sortedRootMoves = new FastArrayList<Move>(currentRootMoves.size());
@@ -444,15 +438,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 		final Game game = context.game();
 		final int mover = state.playerToAgent(state.mover());
 		
-		// need to create a copy in case we modify it (by adding a forced pass)
-		final FastArrayList<Move> legalMoves = new FastArrayList<Move>(game.moves(context).moves());
-		
-		if (legalMoves.isEmpty())
-		{
-			// force pass action
-			legalMoves.add(Game.createPassMove(context));
-		}
-		
+		final FastArrayList<Move> legalMoves = game.moves(context).moves();
 		final int numLegalMoves = legalMoves.size();
 		float alpha = inAlpha;
 		float beta = inBeta;
@@ -772,14 +758,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 		final Game game = context.game();
 		final int mover = state.mover();
 		
-		// need to create a copy in case we modify it (by adding a forced pass)
-		final FastArrayList<Move> legalMoves = new FastArrayList<Move>(game.moves(context).moves());
-		
-		if (legalMoves.isEmpty())
-		{
-			// force pass action
-			legalMoves.add(Game.createPassMove(context));
-		}
+		final FastArrayList<Move> legalMoves = game.moves(context).moves();
 		
 		// We can maybe narrow alpha and beta if some players already won/lost
 		final float alpha = Math.max(inAlpha, ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT);

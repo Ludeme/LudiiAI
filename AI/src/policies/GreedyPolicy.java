@@ -342,13 +342,6 @@ public class GreedyPolicy extends Policy
 	) 
 	{
 		final Moves actions = game.moves(context);
-		
-		if (actions.moves().size() == 0)
-		{
-			// have to pass
-			return Game.createPassMove(context);
-		}
-		
 		final FeatureSet featureSet;
 		
 		if (featureSets.length == 1)

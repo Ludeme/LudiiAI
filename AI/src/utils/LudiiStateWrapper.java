@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import game.Game;
 import game.equipment.container.Container;
 import gnu.trove.list.array.TIntArrayList;
 import main.Constants;
@@ -116,13 +115,7 @@ public final class LudiiStateWrapper
 	public void applyNthMove(final int n)
 	{
 		final FastArrayList<Move> legalMoves = game.game.moves(context).moves();
-		final Move moveToApply;
-		
-		if (legalMoves.isEmpty())
-			moveToApply = Game.createPassMove(context);
-		else
-			moveToApply = legalMoves.get(n);
-		
+		final Move moveToApply = legalMoves.get(n);
 		game.game.apply(context, moveToApply);
 	}
 	

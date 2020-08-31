@@ -72,15 +72,7 @@ public class FlatMonteCarlo extends AI
 		//System.out.println("legal moves for player " + player + " = " + legalMoves);
 		final int numActions = legalMoves.size();
 		
-		if (numActions == 0)
-		{
-			lastScoreSums = null;
-			lastVisitCounts = null;
-			lastActionList = null;
-			//System.out.println("returning pass");
-			return Game.createPassMove(context);
-		}
-		else if (numActions == 1)
+		if (numActions == 1)
 		{
 			// play faster if we only have one move available anyway
 			if (autoPlaySeconds >= 0.0 && autoPlaySeconds < maxSeconds)

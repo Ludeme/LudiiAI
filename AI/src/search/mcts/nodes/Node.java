@@ -1,6 +1,5 @@
 package search.mcts.nodes;
 
-import game.Game;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import search.mcts.MCTS;
@@ -68,17 +67,8 @@ public final class Node extends BaseNode
     		// non-terminal game state, so figure out list of actions we can 
     		// still take
     		final FastArrayList<Move> actions = context.game().moves(context).moves();
-    		
-    		if (actions.isEmpty())
-    		{
-    			// force pass action
-    			legalMoves = new Move[] {Game.createPassMove(context)};
-    		}
-    		else
-    		{
-    			legalMoves = new Move[actions.size()];
-    			actions.toArray(legalMoves);
-    		}
+    		legalMoves = new Move[actions.size()];
+    		actions.toArray(legalMoves);
     	}
     	
     	children = new Node[legalMoves.length];
