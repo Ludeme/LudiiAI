@@ -1,5 +1,6 @@
 package utils;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -27,6 +28,9 @@ public final class LudiiGameWrapper
 {
 	
 	//-------------------------------------------------------------------------
+	
+	/** x- and/or y-coordinates that differ by at most this amount are considered equal */
+	protected static final double EPSILON = 0.00001;
 	
 	/** Number of channels we use for stacks (just 1 for not-stacking-games) */
 	protected static final int NUM_STACK_CHANNELS = 10;
@@ -72,6 +76,15 @@ public final class LudiiGameWrapper
 	/** Channel index for Swap move in move-tensor-representation */
 	protected int MOVE_SWAP_CHANNEL_IDX;
 	
+	/** A flat version of a complete channel of only 1s */
+	protected float[] ALL_ONES_CHANNEL_FLAT;
+	
+	/** 
+	 * A flat version of multiple concatenated channels (one per container), 
+	 * indicating whether or not positions exist in containers 
+	 */
+	protected float[] CONTAINER_POSITION_CHANNELS;
+	
 	//-------------------------------------------------------------------------
 	
 	/**
@@ -82,7 +95,7 @@ public final class LudiiGameWrapper
 	{
 		game = GameLoader.loadGameFromName(gameName);
 		
-		if ((game.stateFlags() & GameType.UsesFromPositions) == 0L)
+		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
 			moveTensorDistClip = 0;		// no from-positions in any moves in this game
 		else
 			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
@@ -99,7 +112,40 @@ public final class LudiiGameWrapper
 	{
 		game = GameLoader.loadGameFromName(gameName, Arrays.asList(gameOptions));
 		
-		if ((game.stateFlags() & GameType.UsesFromPositions) == 0L)
+		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
+			moveTensorDistClip = 0;		// no from-positions in any moves in this game
+		else
+			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
+		
+		computeTensorCoords();
+	}
+	
+	/**
+	 * Constructor from .lud file
+	 * @param file
+	 */
+	public LudiiGameWrapper(final File file)
+	{
+		game = GameLoader.loadGameFromFile(file);
+		
+		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
+			moveTensorDistClip = 0;		// no from-positions in any moves in this game
+		else
+			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
+		
+		computeTensorCoords();
+	}
+	
+	/**
+	 * Constructor from .lud file with game options
+	 * @param file
+	 * @param gameOptions
+	 */
+	public LudiiGameWrapper(final File file, final String... gameOptions)
+	{
+		game = GameLoader.loadGameFromFile(file, Arrays.asList(gameOptions));
+		
+		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
 			moveTensorDistClip = 0;		// no from-positions in any moves in this game
 		else
 			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
@@ -116,7 +162,7 @@ public final class LudiiGameWrapper
 	{
 		this.game = game;
 		
-		if ((game.stateFlags() & GameType.UsesFromPositions) == 0L)
+		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
 			moveTensorDistClip = 0;		// no from-positions in any moves in this game
 		else
 			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
@@ -325,6 +371,23 @@ public final class LudiiGameWrapper
 		return game.getMaxMoveLimit();
 	}
 	
+	/**
+	 * @return A flat representation of a channel fully filled with only 1s.
+	 */
+	public float[] allOnesChannelFlat()
+	{
+		return ALL_ONES_CHANNEL_FLAT;
+	}
+	
+	/**
+	 * @return A flat version of multiple concatenated channels (one per container), 
+	 * indicating whether or not positions exist in containers 
+	 */
+	public float[] containerPositionChannels()
+	{
+		return CONTAINER_POSITION_CHANNELS;
+	}
+	
 	//-------------------------------------------------------------------------
 	
 	/**
@@ -368,7 +431,7 @@ public final class LudiiGameWrapper
 		for (final TopologyElement e : sortedGraphElements)
 		{			
 			final double xPos = e.centroid().getX();
-			if (xPos > currXPos)
+			if (xPos - EPSILON > currXPos)
 			{
 				++currIdx;
 				currXPos = xPos;
@@ -401,7 +464,7 @@ public final class LudiiGameWrapper
 		for (final TopologyElement e : sortedGraphElements)
 		{
 			final double yPos = e.centroid().getY();
-			if (yPos > currYPos)
+			if (yPos - EPSILON > currYPos)
 			{
 				++currIdx;
 				currYPos = yPos;
@@ -496,6 +559,7 @@ public final class LudiiGameWrapper
 		final boolean usesCount = game.requiresCount();
 		final boolean usesAmount = game.requiresBet();
 		final boolean usesState = game.requiresLocalState();
+		final boolean usesSwap = game.usesSwapRule();
 		
 		final List<String> channelNames = new ArrayList<String>();
 		
@@ -528,13 +592,13 @@ public final class LudiiGameWrapper
 		if (stacking)
 		{
 			stateTensorNumChannels += 1;	// one more channel for size of stack
-			channelNames.add("Stack sizes (non-binary channel!");
+			channelNames.add("Stack sizes (non-binary channel!)");
 		}
 		
 		if (usesCount)
 		{
 			stateTensorNumChannels += 1;	// channel for count
-			channelNames.add("Counts (non-binary channel!");
+			channelNames.add("Counts (non-binary channel!)");
 		}
 		
 		if (usesAmount)
@@ -570,6 +634,12 @@ public final class LudiiGameWrapper
 			}
 		}
 		
+		if (usesSwap)
+		{
+			stateTensorNumChannels += 1;
+			channelNames.add("Did Swap Occur?");
+		}
+		
 		stateTensorNumChannels += numContainers;	// for maps of whether positions exist in containers
 		
 		for (int c = 0; c < numContainers; ++c)
@@ -589,6 +659,21 @@ public final class LudiiGameWrapper
 		
 		MOVE_PASS_CHANNEL_IDX = computeMovePassChannelIdx();
 		MOVE_SWAP_CHANNEL_IDX = MOVE_PASS_CHANNEL_IDX + 1;
+		
+		ALL_ONES_CHANNEL_FLAT = new float[tensorDimX * tensorDimY];
+		Arrays.fill(ALL_ONES_CHANNEL_FLAT, 1.f);
+		
+		CONTAINER_POSITION_CHANNELS = new float[containers.length * tensorDimX * tensorDimY];
+		for (int c = 0; c < containers.length; ++c)
+		{
+			final Container cont = containers[c];
+			final int contStartSite = game.equipment().sitesFrom()[c];
+			
+			for (int site = 0; site < cont.numSites(); ++site)
+			{
+				CONTAINER_POSITION_CHANNELS[yCoords[contStartSite + site] + tensorDimY * (xCoords[contStartSite + site] + (c * tensorDimX))] = 1.f;
+			}
+		}
 	}
 	
 	//-------------------------------------------------------------------------

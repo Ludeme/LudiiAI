@@ -154,11 +154,12 @@ public final class LudiiStateWrapper
 	
 	/**
 	 * @return Current player to move (not accurate in simultaneous-move games).
-	 * Returns a 0-based index.
+	 * Returns a 0-based index. Returns the player/agent to move, not necessarily
+	 * the "colour" to move (may be different in games with Swap rule).
 	 */
 	public int currentPlayer()
 	{
-		return context.state().mover() - 1;
+		return context.state().playerToAgent(context.state().mover()) - 1;
 	}
 	
 	/**
@@ -167,6 +168,14 @@ public final class LudiiStateWrapper
 	public boolean isTerminal()
 	{
 		return trial.over();
+	}
+	
+	/**
+	 * @return The full Zobrist hash of the current state
+	 */
+	public long fullZobristHash()
+	{
+		return context.state().fullHash();
 	}
 	
 	/**
@@ -335,18 +344,21 @@ public final class LudiiStateWrapper
 	}
 	
 	/**
-	 * @return A single tensor representation of the current game state
+	 * @return A flat, 1D array tensor representation of the current game state
 	 */
-	public float[][][] toTensor()
+	public float[] toTensorFlat()
 	{
+		// TODO some channels are always the same, precompute and reuse those
 		// TODO we also want to support edges and faces for some games
 		
+		final Container[] containers = game.game.equipment().containers();
 		final int numPlayers = game.game.players().count();
 		final int numPieceTypes = game.game.equipment().components().length - 1;
 		final boolean stacking = game.game.isStacking();
 		final boolean usesCount = game.game.requiresCount();
 		final boolean usesAmount = game.game.requiresBet();
 		final boolean usesState = game.game.requiresLocalState();
+		final boolean usesSwap = game.game.usesSwapRule();
 		
 		final int[] xCoords = game.tensorCoordsX();
 		final int[] yCoords = game.tensorCoordsY();
@@ -355,16 +367,17 @@ public final class LudiiStateWrapper
 		
 		final int numChannels = game.stateTensorNumChannels;
 		
-		final float[][][] tensor = new float[numChannels][tensorDimX][tensorDimY];
+		final float[] flatTensor = new float[numChannels * tensorDimX * tensorDimY];
 		
 		int currentChannel = 0;
 		
 		if (!stacking)
 		{
 			// Just one channel per piece type
+			final Owned owned = context.state().owned();
+			
 			for (int e = 1; e <= numPieceTypes; ++e)
 			{
-				final Owned owned = context.state().owned();
 				for (int p = 1; p <= numPlayers + 1; ++p)
 				{
 					final TIntArrayList sites = owned.sites(p, e);
@@ -372,7 +385,7 @@ public final class LudiiStateWrapper
 					for (int i = 0; i < sites.size(); ++i)
 					{
 						final int site = sites.getQuick(i);
-						tensor[currentChannel][xCoords[site]][yCoords[site]] = 1.f;
+						flatTensor[yCoords[site] + tensorDimY * (xCoords[site] + (currentChannel * tensorDimX))] = 1.f;
 					}
 				}
 				
@@ -382,9 +395,9 @@ public final class LudiiStateWrapper
 		else
 		{
 			// We have to deal with stacking
-			for (int c = 0; c < game.game.equipment().containers().length; ++c)
+			for (int c = 0; c < containers.length; ++c)
 			{
-				final Container cont = game.game.equipment().containers()[c];
+				final Container cont = containers[c];
 				final BaseContainerStateStacking cs = (BaseContainerStateStacking) context.state().containerStates()[c];
 				final int contStartSite = game.game.equipment().sitesFrom()[c];
 				
@@ -402,7 +415,7 @@ public final class LudiiStateWrapper
 							
 							final int what = cs.whatCell(contStartSite + site, i);
 							final int channel = currentChannel + ((what - 1) * LudiiGameWrapper.NUM_STACK_CHANNELS + i);
-							tensor[channel][xCoords[contStartSite + site]][yCoords[contStartSite + site]] = 1.f;
+							flatTensor[yCoords[contStartSite + site] + tensorDimY * (xCoords[contStartSite + site] + (channel * tensorDimX))] = 1.f;
 						}
 						
 						// And same for top 5 elements of stack
@@ -415,12 +428,12 @@ public final class LudiiStateWrapper
 							final int channel = 
 									currentChannel + ((what - 1) * LudiiGameWrapper.NUM_STACK_CHANNELS + 
 											(LudiiGameWrapper.NUM_STACK_CHANNELS / 2) + i);
-							tensor[channel][xCoords[contStartSite + site]][yCoords[contStartSite + site]] = 1.f;
+							flatTensor[yCoords[contStartSite + site] + tensorDimY * (xCoords[contStartSite + site] + (channel * tensorDimX))] = 1.f;
 						}
 						
 						// Finally a non-binary channel storing the height of stack
 						final int channel = currentChannel + LudiiGameWrapper.NUM_STACK_CHANNELS * numPieceTypes;
-						tensor[channel][xCoords[contStartSite + site]][yCoords[contStartSite + site]] = stackSize;
+						flatTensor[yCoords[contStartSite + site] + tensorDimY * (xCoords[contStartSite + site] + (channel * tensorDimX))] = stackSize;
 					}
 				}
 			}
@@ -432,15 +445,15 @@ public final class LudiiStateWrapper
 		if (usesCount)
 		{
 			// non-binary channel for counts
-			for (int c = 0; c < game.game.equipment().containers().length; ++c)
+			for (int c = 0; c < containers.length; ++c)
 			{
-				final Container cont = game.game.equipment().containers()[c];
+				final Container cont = containers[c];
 				final ContainerState cs = context.state().containerStates()[c];
 				final int contStartSite = game.game.equipment().sitesFrom()[c];
 				
 				for (int site = 0; site < cont.numSites(); ++site)
 				{
-					tensor[currentChannel][xCoords[contStartSite + site]][yCoords[contStartSite + site]] = 
+					flatTensor[yCoords[contStartSite + site] + tensorDimY * (xCoords[contStartSite + site] + (currentChannel * tensorDimX))] = 
 							cs.countCell(contStartSite + site);
 				}
 			}
@@ -454,11 +467,9 @@ public final class LudiiStateWrapper
 			for (int p = 1; p <= numPlayers; ++p)
 			{
 				final int amount = context.state().amount(p);
-				
-				for (int x = 0; x < tensor[currentChannel].length; ++x)
-				{
-					Arrays.fill(tensor[currentChannel][x], amount);
-				}
+				final int startFill = tensorDimY * currentChannel * tensorDimX;
+				final int endFill = startFill + (tensorDimY * tensorDimX);
+				Arrays.fill(flatTensor, startFill, endFill, amount);
 				
 				++currentChannel;
 			}
@@ -468,46 +479,49 @@ public final class LudiiStateWrapper
 		{
 			// One binary channel per player for whether or not they're current mover
 			// (one will be all-1s, all the others will be all-0)
-			final int mover = context.state().mover();
-			for (int x = 0; x < tensor[currentChannel + mover - 1].length; ++x)
-			{
-				Arrays.fill(tensor[currentChannel + mover - 1][x], 1.f);
-			}
+			// Takes into account swap rule!
+			final int mover = context.state().playerToAgent(context.state().mover());
+			final int startFill = tensorDimY * (currentChannel + mover - 1) * tensorDimX;
+			System.arraycopy(game.allOnesChannelFlat(), 0, flatTensor, startFill, (tensorDimY * tensorDimX));
+
 			currentChannel += numPlayers;
 		}
 		
 		if (usesState)
 		{
 			// Channels for local state: 0, 1, 2, 3, 4, or >= 5
-			for (int c = 0; c < game.game.equipment().containers().length; ++c)
+			for (int c = 0; c < containers.length; ++c)
 			{
-				final Container cont = game.game.equipment().containers()[c];
+				final Container cont = containers[c];
 				final int contStartSite = game.game.equipment().sitesFrom()[c];
 				final ContainerState cs = context.state().containerStates()[c];
 				
 				for (int site = 0; site < cont.numSites(); ++site)
 				{
 					final int state = Math.min(cs.stateCell(contStartSite + site), LudiiGameWrapper.NUM_LOCAL_STATE_CHANNELS - 1);
-					tensor[currentChannel + state][xCoords[contStartSite + site]][yCoords[contStartSite + site]] = 1.f;
+					flatTensor[yCoords[contStartSite + site] + tensorDimY * (xCoords[contStartSite + site] + ((currentChannel + state) * tensorDimX))] = 1.f;
 				}
 			}
 			
 			currentChannel += LudiiGameWrapper.NUM_LOCAL_STATE_CHANNELS;
 		}
 		
-		// Channels for whether or not positions exist in containers
-		for (int c = 0; c < game.game.equipment().containers().length; ++c)
+		if (usesSwap)
 		{
-			final Container cont = game.game.equipment().containers()[c];
-			final int contStartSite = game.game.equipment().sitesFrom()[c];
-			
-			for (int site = 0; site < cont.numSites(); ++site)
+			// Channel for whether or not swap occurred
+			if (context.state().orderHasChanged())
 			{
-				tensor[currentChannel][xCoords[contStartSite + site]][yCoords[contStartSite + site]] = 1.f;
+				final int startFill = tensorDimY * currentChannel * tensorDimX;
+				System.arraycopy(game.allOnesChannelFlat(), 0, flatTensor, startFill, (tensorDimY * tensorDimX));
 			}
 			
-			++currentChannel;
+			currentChannel += 1;
 		}
+		
+		// Channels for whether or not positions exist in containers
+		final int startFill = tensorDimY * currentChannel * tensorDimX;
+		System.arraycopy(game.containerPositionChannels(), 0, flatTensor, startFill, (containers.length * tensorDimY * tensorDimX));
+		currentChannel += containers.length;
 		
 		// Channels marking from and to of last Move
 		if (trial.moves().size() - trial.numInitialPlacementMoves() > 0)
@@ -516,13 +530,13 @@ public final class LudiiStateWrapper
 			final int from = lastMove.fromNonDecision();
 			
 			if (from != Constants.OFF)
-				tensor[currentChannel][xCoords[from]][yCoords[from]] = 1.f;
+				flatTensor[yCoords[from] + tensorDimY * (xCoords[from] + (currentChannel * tensorDimX))] = 1.f;
 			
 			++currentChannel;
 			final int to = lastMove.toNonDecision();
 			
 			if (to != Constants.OFF)
-				tensor[currentChannel][xCoords[to]][yCoords[to]] = 1.f;
+				flatTensor[yCoords[to] + tensorDimY * (xCoords[to] + (currentChannel * tensorDimX))] = 1.f;
 			
 			++currentChannel;
 		}
@@ -538,13 +552,13 @@ public final class LudiiStateWrapper
 			final int from = lastLastMove.fromNonDecision();
 			
 			if (from != Constants.OFF)
-				tensor[currentChannel][xCoords[from]][yCoords[from]] = 1.f;
+				flatTensor[yCoords[from] + tensorDimY * (xCoords[from] + (currentChannel * tensorDimX))] = 1.f;
 			
 			++currentChannel;
 			final int to = lastLastMove.toNonDecision();
 			
 			if (to != Constants.OFF)
-				tensor[currentChannel][xCoords[to]][yCoords[to]] = 1.f;
+				flatTensor[yCoords[to] + tensorDimY * (xCoords[to] + (currentChannel * tensorDimX))] = 1.f;
 			
 			++currentChannel;
 		}
@@ -556,7 +570,38 @@ public final class LudiiStateWrapper
 		// Assert that we correctly ran through all channels
 		assert (currentChannel == numChannels);
 		
+		return flatTensor;
+	}
+	
+	/**
+	 * @return A single (3D) tensor representation of the current game state
+	 */
+	public float[][][] toTensor()
+	{
+		final int tensorDimX = game.tensorDimX();
+		final int tensorDimY = game.tensorDimY();
+		final int numChannels = game.stateTensorNumChannels;
+		
+		final float[] flatTensor = toTensorFlat();
+		final float[][][] tensor = new float[numChannels][tensorDimX][tensorDimY];
+		
+		for (int c = 0; c < numChannels; ++c)
+		{
+			for (int x = 0; x < tensorDimX; ++x)
+			{
+				System.arraycopy(flatTensor, tensorDimY * (x + (c * tensorDimX)), tensor[c][x], 0, tensorDimY);
+			}
+		}
+		
 		return tensor;
+	}
+	
+	/**
+	 * @return The wrapped trial object
+	 */
+	public Trial trial()
+	{
+		return trial;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -569,7 +614,8 @@ public final class LudiiStateWrapper
 		
 		sb.append("BEGIN LUDII STATE\n");
 		
-		sb.append("Mover = " + state.mover() + "\n");
+		sb.append("Mover colour = " + state.mover() + "\n");
+		sb.append("Mover player/agent = " + state.playerToAgent(state.mover()) + "\n");
 		sb.append("Next = " + state.next() + "\n");
 		sb.append("Previous = " + state.prev() + "\n");
 		

@@ -1319,10 +1319,10 @@ public class ExpertIteration
 			/**
 			 * Creates (or loads) experience buffers (one per player)
 			 * 
-			 * @param prioritizedExperienceReplay
+			 * @param prio
 			 * @return
 			 */
-			private ExperienceBuffer[] prepareExperienceBuffers(final boolean prioritizedExperienceReplay)
+			private ExperienceBuffer[] prepareExperienceBuffers(final boolean prio)
 			{
 				final ExperienceBuffer[] experienceBuffers = new ExperienceBuffer[numPlayers + 1];
 				
@@ -1342,7 +1342,7 @@ public class ExpertIteration
 					if (currentExperienceBufferFilenames[p] == null)
 					{
 						// create new Experience Buffer
-						if (prioritizedExperienceReplay)
+						if (prio)
 							experienceBuffer = new PrioritizedReplayBuffer(experienceBufferSize);
 						else
 							experienceBuffer = new UniformExperienceBuffer(experienceBufferSize);
@@ -1352,7 +1352,7 @@ public class ExpertIteration
 					{
 						// load experience buffer from file
 						experienceBuffer = 
-								prioritizedExperienceReplay
+								prio
 								? PrioritizedReplayBuffer.fromFile(game, outDir.getAbsolutePath() + File.separator + currentExperienceBufferFilenames[p])
 								: UniformExperienceBuffer.fromFile(game, outDir.getAbsolutePath() + File.separator + currentExperienceBufferFilenames[p]);
 						
@@ -1963,7 +1963,7 @@ public class ExpertIteration
 				final ExItExperience[] batch,
 				final FeatureSet featureSet,
 				final SoftmaxPolicy crossEntropyPolicy,
-				final Game game,
+				final Game g,
 				final int featureDiscoveryMaxNumFeatureInstances
 			)
 			{	
@@ -2182,7 +2182,7 @@ public class ExpertIteration
 							
 							// increment entries on ''main diagonals''
 							final CombinableFeatureInstancePair combinedSelf = 
-									new CombinableFeatureInstancePair(game, instanceI, instanceI);
+									new CombinableFeatureInstancePair(g, instanceI, instanceI);
 												
 							if (!observedCasePairs.contains(combinedSelf))
 							{
@@ -2206,7 +2206,7 @@ public class ExpertIteration
 								
 								// increment off-diagonal entries
 								final CombinableFeatureInstancePair combined = 
-										new CombinableFeatureInstancePair(game, instanceI, instanceJ);
+										new CombinableFeatureInstancePair(g, instanceI, instanceJ);
 								
 								if (!existingFeatures.contains(combined.combinedFeature))
 								{
@@ -2253,13 +2253,13 @@ public class ExpertIteration
 						final int actsI = 
 								featurePairActivations.get
 								(
-									new CombinableFeatureInstancePair(game, pair.a, pair.a)
+									new CombinableFeatureInstancePair(g, pair.a, pair.a)
 								);
 						
 						final int actsJ = 
 								featurePairActivations.get
 								(
-									new CombinableFeatureInstancePair(game, pair.b, pair.b)
+									new CombinableFeatureInstancePair(g, pair.b, pair.b)
 								);
 						
 						final int pairActs = featurePairActivations.get(pair);
@@ -2344,32 +2344,32 @@ public class ExpertIteration
 					final ScoredPair bestPair = scoredPairs.remove(bestPairIdx);
 					
 					final FeatureSet newFeatureSet = 
-							featureSet.createExpandedFeatureSet(game, bestPair.pair.a, bestPair.pair.b);
+							featureSet.createExpandedFeatureSet(g, bestPair.pair.a, bestPair.pair.b);
 					
 					if (newFeatureSet != null)
 					{
 						final int actsI = 
 								featurePairActivations.get
 								(
-									new CombinableFeatureInstancePair(game, bestPair.pair.a, bestPair.pair.a)
+									new CombinableFeatureInstancePair(g, bestPair.pair.a, bestPair.pair.a)
 								);
 						
 						final int actsJ = 
 								featurePairActivations.get
 								(
-									new CombinableFeatureInstancePair(game, bestPair.pair.b, bestPair.pair.b)
+									new CombinableFeatureInstancePair(g, bestPair.pair.b, bestPair.pair.b)
 								);
 						
 						final int pairActs = 
 								featurePairActivations.get
 								(
-									new CombinableFeatureInstancePair(game, bestPair.pair.a, bestPair.pair.b)
+									new CombinableFeatureInstancePair(g, bestPair.pair.a, bestPair.pair.b)
 								);
 						
 						final double pairErrorSum = 
 								errorSums.get
 								(
-									new CombinableFeatureInstancePair(game, bestPair.pair.a, bestPair.pair.b)
+									new CombinableFeatureInstancePair(g, bestPair.pair.a, bestPair.pair.b)
 								);
 						
 						final double errorCorr = 
@@ -2494,13 +2494,13 @@ public class ExpertIteration
 				
 				/**
 				 * Constructor
-				 * @param game
+				 * @param g
 				 * @param a
 				 * @param b
 				 */
 				public CombinableFeatureInstancePair
 				(
-					final Game game,
+					final Game g,
 					final FeatureInstance a, 
 					final FeatureInstance b
 				)
@@ -2513,40 +2513,40 @@ public class ExpertIteration
 					
 					if (a.feature().featureSetIndex() < b.feature().featureSetIndex())
 					{
-						combinedFeature = Feature.combineFeatures(game, a, b);
+						combinedFeature = Feature.combineFeatures(g, a, b);
 					}
 					else if (b.feature().featureSetIndex() < a.feature().featureSetIndex())
 					{
-						combinedFeature = Feature.combineFeatures(game, b, a);
+						combinedFeature = Feature.combineFeatures(g, b, a);
 					}
 					else
 					{
 						if (a.reflection() > b.reflection())
 						{
-							combinedFeature = Feature.combineFeatures(game, a, b);
+							combinedFeature = Feature.combineFeatures(g, a, b);
 						}
 						else if (b.reflection() > a.reflection())
 						{
-							combinedFeature = Feature.combineFeatures(game, b, a);
+							combinedFeature = Feature.combineFeatures(g, b, a);
 						}
 						else
 						{
 							if (a.rotation() < b.rotation())
 							{
-								combinedFeature = Feature.combineFeatures(game, a, b);
+								combinedFeature = Feature.combineFeatures(g, a, b);
 							}
 							else if (b.rotation() < a.rotation())
 							{
-								combinedFeature = Feature.combineFeatures(game, b, a);
+								combinedFeature = Feature.combineFeatures(g, b, a);
 							}
 							else
 							{
 								if (a.anchorSite() < b.anchorSite())
-									combinedFeature = Feature.combineFeatures(game, a, b);
+									combinedFeature = Feature.combineFeatures(g, a, b);
 								else if (b.anchorSite() < a.anchorSite())
-									combinedFeature = Feature.combineFeatures(game, b, a);
+									combinedFeature = Feature.combineFeatures(g, b, a);
 								else
-									combinedFeature = Feature.combineFeatures(game, a, b);
+									combinedFeature = Feature.combineFeatures(g, a, b);
 							}
 						}
 					}
@@ -2807,10 +2807,10 @@ public class ExpertIteration
 			//-----------------------------------------------------------------
 			
 			@Override
-			public void logLine(final PrintWriter logWriter, final String line)
+			public void logLine(final PrintWriter log, final String line)
 			{
 				if (!noLogging)
-					super.logLine(logWriter, line);
+					super.logLine(log, line);
 			}
 			
 			//-----------------------------------------------------------------

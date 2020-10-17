@@ -626,7 +626,7 @@ public class MCTS extends ExpertPolicy
 	public void initAI(final Game game, final int playerID)
 	{
 		// store state flags
-		currentGameFlags = game.stateFlags();
+		currentGameFlags = game.gameFlags();
 		
 		// reset counters
 		lastNumMctsIterations = -1;
@@ -660,10 +660,10 @@ public class MCTS extends ExpertPolicy
 	@Override
 	public boolean supportsGame(final Game game)
 	{
-		final long stateFlags = game.stateFlags();
+		final long gameFlags = game.gameFlags();
 		
 		// this MCTS implementation does not support simultaneous-move games
-		if ((stateFlags & GameType.Simultaneous) != 0L)
+		if ((gameFlags & GameType.Simultaneous) != 0L)
 			return false;
 		
 		if (learnedSelectionPolicy != null && !learnedSelectionPolicy.supportsGame(game))

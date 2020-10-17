@@ -137,7 +137,7 @@ public abstract class Feature
 		
 		if (graphElementType != null)
 			instanceType = graphElementType;
-		else if (game.defaultSiteTypeIsVertex())
+		else if (game.board().defaultSite() == SiteType.Vertex)
 			instanceType = SiteType.Vertex;
 		else
 			instanceType = SiteType.Cell;
@@ -173,7 +173,7 @@ public abstract class Feature
 				for (int rotIdx = 0; rotIdx < rots.size(); ++rotIdx)
 				{
 					boolean moreRotationsRelevant = false;
-					float rot = rots.get(rotIdx);
+					final float rot = rots.get(rotIdx);
 
 					boolean allElementsAbsolute = true;
 

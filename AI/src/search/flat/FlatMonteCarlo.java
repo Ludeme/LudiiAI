@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import game.Game;
-import game.types.state.GameType;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import util.AI;
@@ -65,7 +64,7 @@ public class FlatMonteCarlo extends AI
 		long stopTime = (maxSeconds > 0.0) ? startTime + (long) (maxSeconds * 1000) : Long.MAX_VALUE;
 		final int maxIts = (maxIterations >= 0) ? maxIterations : Integer.MAX_VALUE;
 		
-		FastArrayList<Move> legalMoves = game.moves(context).moves();
+		final FastArrayList<Move> legalMoves = game.moves(context).moves();
 		//System.out.println("legal moves for all players = " + legalMoves);
 
 		
@@ -191,12 +190,10 @@ public class FlatMonteCarlo extends AI
 	@Override
 	public boolean supportsGame(final Game game)
 	{
-		final long stateFlags = game.stateFlags();
-		
 		if (game.isDeductionPuzzle())
 			return false;
 		
-		return ((stateFlags & GameType.Realtime) == 0);
+		return true;
 	}
 	
 	@Override
