@@ -46,7 +46,11 @@ public class RandomAI extends AI
 		final int maxDepth
 	)
 	{
-		final FastArrayList<Move> legalMoves = game.moves(context).moves();
+		FastArrayList<Move> legalMoves = game.moves(context).moves();
+		
+		if (!game.isAlternatingMoveGame())
+			legalMoves = AIUtils.extractMovesForMover(legalMoves, player);
+		
 		final int r = ThreadLocalRandom.current().nextInt(legalMoves.size());
 		final Move move = legalMoves.get(r);
 		lastReturnedMove = move;

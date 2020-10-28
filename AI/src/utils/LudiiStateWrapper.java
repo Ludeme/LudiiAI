@@ -11,6 +11,7 @@ import main.Constants;
 import main.collections.FastArrayList;
 import util.Context;
 import util.Move;
+import util.TempContext;
 import util.Trial;
 import util.state.State;
 import util.state.containerStackingState.BaseContainerStateStacking;
@@ -29,13 +30,13 @@ public final class LudiiStateWrapper
 	//-------------------------------------------------------------------------
 	
 	/** Reference back to our wrapped Ludii game */
-	protected final LudiiGameWrapper game;
+	protected LudiiGameWrapper game;
 	
 	/** Our wrapped context */
-	protected final Context context;
+	protected Context context;
 	
 	/** Our wrapped trial */
-	protected final Trial trial;
+	protected Trial trial;
 	
 	//-------------------------------------------------------------------------
 	
@@ -56,6 +57,22 @@ public final class LudiiStateWrapper
 	 * @param other
 	 */
 	public LudiiStateWrapper(final LudiiStateWrapper other)
+	{
+		this.game = other.game;
+		this.context = new Context(other.context);
+		this.trial = this.context.trial();
+	}
+	
+	//-------------------------------------------------------------------------
+	
+	/**
+	 * Copies data from given other LudiiStateWrapper.
+	 * TODO can optimise this if we provide optimised copyFrom implementations
+	 * for context and trial!
+	 * 
+	 * @param other
+	 */
+	public void copyFrom(final LudiiStateWrapper other)
 	{
 		this.game = other.game;
 		this.context = new Context(other.context);
@@ -289,6 +306,30 @@ public final class LudiiStateWrapper
 		}
 
 		return movesTensors;
+	}
+	
+	/**
+	 * Estimates a reward for a given player (assumed 0-index player) based on one
+	 * or more random rollouts from the current state.
+	 * 
+	 * @param player
+	 * @param numRollouts
+	 * @param playoutCap Max number of random actions we'll select in playout
+	 * @return Estimated reward
+	 */
+	public double getRandomRolloutsReward(final int player, final int numRollouts, final int playoutCap)
+	{
+		double sumRewards = 0.0;
+		
+		for (int i = 0; i < numRollouts; ++i)
+		{
+			final TempContext copyContext = new TempContext(context);
+			game.game.playout(copyContext, null, 0.1f, null, null, 0, playoutCap, -1.f, ThreadLocalRandom.current());
+			final double[] returns = AIUtils.agentUtilities(copyContext);
+			sumRewards += returns[player + 1];
+		}
+		
+		return sumRewards / numRollouts;
 	}
 	
 	/**

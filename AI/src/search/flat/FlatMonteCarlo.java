@@ -64,9 +64,11 @@ public class FlatMonteCarlo extends AI
 		long stopTime = (maxSeconds > 0.0) ? startTime + (long) (maxSeconds * 1000) : Long.MAX_VALUE;
 		final int maxIts = (maxIterations >= 0) ? maxIterations : Integer.MAX_VALUE;
 		
-		final FastArrayList<Move> legalMoves = game.moves(context).moves();
+		FastArrayList<Move> legalMoves = game.moves(context).moves();
 		//System.out.println("legal moves for all players = " + legalMoves);
 
+		if (!game.isAlternatingMoveGame())
+			legalMoves = AIUtils.extractMovesForMover(legalMoves, player);
 		
 		//System.out.println("legal moves for player " + player + " = " + legalMoves);
 		final int numActions = legalMoves.size();

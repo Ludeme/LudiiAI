@@ -445,7 +445,7 @@ public abstract class BaseNode
      */
     public double normalisedEntropy()
     {
-    	// compute distribution implied by visit counts
+    	// Compute distribution implied by visit counts
     	final FVector distribution = computeVisitCountPolicy(1.f);
     	
     	final int dim = distribution.dim();
@@ -455,8 +455,8 @@ public abstract class BaseNode
     		return 0.0;
     	}
     	
-    	// compute unnormalized entropy 
-    	// (in nats, unit won't matter after normalization)
+    	// Compute unnormalised entropy 
+    	// (in nats, unit won't matter after normalisation)
     	double entropy = 0.0;
     	
     	for (int i = 0; i < dim; ++i)
@@ -469,7 +469,7 @@ public abstract class BaseNode
     		}
     	}
     	
-    	// normalize and return
+    	// Normalise and return
     	return (entropy / Math.log(dim));
     }
     
@@ -489,8 +489,8 @@ public abstract class BaseNode
     		return 0.0;
     	}
     	
-    	// compute unnormalized entropy 
-    	// (in nats, unit won't matter after normalization)
+    	// Compute unnormalised entropy 
+    	// (in nats, unit won't matter after normalisation)
     	double entropy = 0.0;
     	
     	for (int i = 0; i < dim; ++i)
@@ -503,7 +503,7 @@ public abstract class BaseNode
     		}
     	}
     	
-    	// normalize and return
+    	// Normalise and return
     	return (entropy / Math.log(dim));
     }
     
@@ -525,8 +525,8 @@ public abstract class BaseNode
     		return 0.0;
     	}
     	
-    	// compute unnormalised entropy 
-    	// (in nats, unit won't matter after normalization)
+    	// Compute unnormalised entropy 
+    	// (in nats, unit won't matter after normalisation)
     	double entropy = 0.0;
     	
     	for (int i = 0; i < dim; ++i)
@@ -539,7 +539,7 @@ public abstract class BaseNode
     		}
     	}
     	
-    	// normalise and return
+    	// Normalise and return
     	return (entropy / Math.log(dim));
     }
     
