@@ -4,7 +4,9 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import game.Game;
@@ -14,9 +16,11 @@ import game.types.state.GameType;
 import main.Constants;
 import main.FileHandling;
 import main.math.MathRoutines;
+import metrics.support.zhang_shasha.Tree;
 import topology.TopologyElement;
 import util.GameLoader;
 import util.Move;
+import utils.data_structures.ludeme_trees.LudemeTreeUtils;
 
 /**
  * Wrapper around a Ludii game, with various extra methods required for
@@ -26,6 +30,61 @@ import util.Move;
  */
 public final class LudiiGameWrapper
 {
+	
+	//-------------------------------------------------------------------------
+	
+	/**
+	 * Wrapper class for keys used to index into map of already-compiled 
+	 * game wrappers.
+	 *
+	 * @author Dennis Soemers
+	 */
+	private static class GameWrapperCacheKey
+	{
+		private final String gameName;
+		private final List<String> options;
+		
+		/**
+		 * Constructor
+		 * @param gameName
+		 * @param options
+		 */
+		public GameWrapperCacheKey(final String gameName, final List<String> options)
+		{
+			this.gameName = gameName;
+			this.options = options;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + ((gameName == null) ? 0 : gameName.hashCode());
+			result = prime * result + ((options == null) ? 0 : options.hashCode());
+			return result;
+		}
+
+		@Override
+		public boolean equals(final Object obj)
+		{
+			if (this == obj)
+				return true;
+
+			if (obj == null)
+				return false;
+
+			if (!(obj instanceof GameWrapperCacheKey))
+				return false;
+			
+			GameWrapperCacheKey other = (GameWrapperCacheKey) obj;
+			return (gameName.equals(other.gameName) && options.equals(other.options));
+		}
+	}
+	
+	/** Cache of already-instantiated LudiiGameWrapper objects */
+	private static Map<GameWrapperCacheKey, LudiiGameWrapper> gameWrappersCache = 
+			new HashMap<GameWrapperCacheKey, LudiiGameWrapper>();
 	
 	//-------------------------------------------------------------------------
 	
@@ -88,74 +147,65 @@ public final class LudiiGameWrapper
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * Constructor
 	 * @param gameName
+	 * @return Returns LudiiGameWrapper for game name (default options)
 	 */
-	public LudiiGameWrapper(final String gameName)
+	public synchronized static LudiiGameWrapper construct(final String gameName)
 	{
-		game = GameLoader.loadGameFromName(gameName);
+		final GameWrapperCacheKey key = new GameWrapperCacheKey(gameName, new ArrayList<String>());
+		LudiiGameWrapper wrapper = gameWrappersCache.get(key);
 		
-		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
-			moveTensorDistClip = 0;		// no from-positions in any moves in this game
-		else
-			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
+		if (wrapper == null)
+		{
+			wrapper = new LudiiGameWrapper(GameLoader.loadGameFromName(gameName));
+			gameWrappersCache.put(key, wrapper);
+		}
 		
-		computeTensorCoords();
+		return wrapper;
 	}
 	
 	/**
-	 * Constructor with game Options
 	 * @param gameName
 	 * @param gameOptions
+	 * @return Returns LudiiGameWrapper for give game name and options
 	 */
-	public LudiiGameWrapper(final String gameName, final String... gameOptions)
+	public static LudiiGameWrapper construct(final String gameName, final String... gameOptions)
 	{
-		game = GameLoader.loadGameFromName(gameName, Arrays.asList(gameOptions));
+		final GameWrapperCacheKey key = new GameWrapperCacheKey(gameName, Arrays.asList(gameOptions));
+		LudiiGameWrapper wrapper = gameWrappersCache.get(key);
 		
-		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
-			moveTensorDistClip = 0;		// no from-positions in any moves in this game
-		else
-			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
+		if (wrapper == null)
+		{
+			wrapper = new LudiiGameWrapper(GameLoader.loadGameFromName(gameName, Arrays.asList(gameOptions)));
+			gameWrappersCache.put(key, wrapper);
+		}
 		
-		computeTensorCoords();
+		return wrapper;
 	}
 	
 	/**
-	 * Constructor from .lud file
 	 * @param file
+	 * @return Returns LudiiGameWrapper for .lud file
 	 */
-	public LudiiGameWrapper(final File file)
+	public static LudiiGameWrapper construct(final File file)
 	{
-		game = GameLoader.loadGameFromFile(file);
-		
-		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
-			moveTensorDistClip = 0;		// no from-positions in any moves in this game
-		else
-			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
-		
-		computeTensorCoords();
+		final Game game = GameLoader.loadGameFromFile(file);
+		return new LudiiGameWrapper(game);
 	}
 	
 	/**
-	 * Constructor from .lud file with game options
 	 * @param file
 	 * @param gameOptions
+	 * @return Returns LudiiGameWrapper for .lud file with game options
 	 */
-	public LudiiGameWrapper(final File file, final String... gameOptions)
+	public static LudiiGameWrapper construct(final File file, final String... gameOptions)
 	{
-		game = GameLoader.loadGameFromFile(file, Arrays.asList(gameOptions));
-		
-		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
-			moveTensorDistClip = 0;		// no from-positions in any moves in this game
-		else
-			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
-		
-		computeTensorCoords();
+		final Game game = GameLoader.loadGameFromFile(file, Arrays.asList(gameOptions));
+		return new LudiiGameWrapper(game);
 	}
 	
 	/**
-	 * Constructor for already-instantiated game. NOTE: here we expect
-	 * that game.create() has also already been called!
+	 * Constructor for already-instantiated game.
 	 * @param game
 	 */
 	public LudiiGameWrapper(final Game game)
@@ -163,7 +213,7 @@ public final class LudiiGameWrapper
 		this.game = game;
 		
 		if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
-			moveTensorDistClip = 0;		// no from-positions in any moves in this game
+			moveTensorDistClip = 0;		// No from-positions in any moves in this game
 		else
 			moveTensorDistClip = DEFAULT_MOVE_TENSOR_DIST_CLIP;
 		
@@ -711,6 +761,287 @@ public final class LudiiGameWrapper
 	//-------------------------------------------------------------------------
 	
 	/**
+	 * Computes and returns array of indices of source channels that we should
+	 * transfer from, for move tensors. At index i of the returned array, we
+	 * have the index of the move tensor channel that we should transfer from
+	 * in the source domain. 
+	 * 
+	 * This array should be of length equal to the
+	 * number of channels in this game.
+	 * 
+	 * If the source game does not contain any matching channels for our
+	 * i'th channel, we have a value of -1 in the returned array.
+	 * 
+	 * @param sourceGame
+	 * @return Indices of source channels we should transfer from
+	 */
+	public int[] moveTensorSourceChannels(final LudiiGameWrapper sourceGame)
+	{
+		final int[] sourceChannelIndices = new int[moveTensorsShape()[0]];
+		
+		for (int targetChannel = 0; targetChannel < sourceChannelIndices.length; ++targetChannel)
+		{
+			if (targetChannel == MOVE_PASS_CHANNEL_IDX)
+			{
+				sourceChannelIndices[targetChannel] = sourceGame.MOVE_PASS_CHANNEL_IDX;
+			}
+			else if (targetChannel == MOVE_SWAP_CHANNEL_IDX)
+			{
+				sourceChannelIndices[targetChannel] = sourceGame.MOVE_SWAP_CHANNEL_IDX;
+			}
+			else
+			{
+				// TODO not handling stacking games yet in these cases
+				
+				if ((game.gameFlags() & GameType.UsesFromPositions) == 0L)
+				{
+					// Target domain is placement game
+					if ((sourceGame.game.gameFlags() & GameType.UsesFromPositions) == 0L)
+					{
+						// Source domain is placement game
+						sourceChannelIndices[targetChannel] = targetChannel;
+					}
+					else
+					{
+						// Source domain is movement game
+						//
+						// We can't properly make every different movement channel from source
+						// domain map to the single placement channel
+						// So, we'll be more strict and instead only map the dx = dy = 0 movement
+						// channel to the target placement channel, leaving all other source movement
+						// channels unused.
+						if (targetChannel != 0)
+							throw new UnsupportedOperationException("LudiiGameWrapper::moveTensorSourceChannels() expected targetChannel == 0!");
+						
+						int channelIdx = MathRoutines.clip(
+								0, 
+								-sourceGame.moveTensorDistClip, 
+								sourceGame.moveTensorDistClip) + sourceGame.moveTensorDistClip;
+			
+						channelIdx *= (sourceGame.moveTensorDistClip * 2 + 1);
+						channelIdx += MathRoutines.clip(
+								0, 
+								-sourceGame.moveTensorDistClip, 
+								sourceGame.moveTensorDistClip) + sourceGame.moveTensorDistClip;
+						
+						sourceChannelIndices[targetChannel] = channelIdx;
+					}
+				}
+				else
+				{
+					// Target domain is movement game
+					if ((sourceGame.game.gameFlags() & GameType.UsesFromPositions) == 0L)
+					{
+						// Source domain is placement game
+						// 
+						// We'll transfer the 0 channel (= placement channel) to all the different
+						// movement channels
+						sourceChannelIndices[targetChannel] = 0;
+					}
+					else
+					{
+						// Source domain is movement game
+						sourceChannelIndices[targetChannel] = targetChannel;
+					}
+				}
+			}
+		}
+		
+		return sourceChannelIndices;
+	}
+	
+	/**
+	 * Computes and returns array of indices of source channels that we should
+	 * transfer from, for state tensors. At index i of the returned array, we
+	 * have the index of the state tensor channel that we should transfer from
+	 * in the source domain. 
+	 * 
+	 * This array should be of length equal to the
+	 * number of channels in this game.
+	 * 
+	 * If the source game does not contain any matching channels for our
+	 * i'th channel, we have a value of -1 in the returned array.
+	 * 
+	 * @param sourceGame
+	 * @return Indices of source channels we should transfer from
+	 */
+	public int[] stateTensorSourceChannels(final LudiiGameWrapper sourceGame)
+	{
+		final String[] sourceChannelNames = sourceGame.stateTensorChannelNames();
+		final int[] sourceChannelIndices = new int[stateTensorsShape()[0]];
+		
+		final Component[] targetComps = game.equipment().components();
+		final Component[] sourceComps = sourceGame.game.equipment().components();
+		
+		for (int targetChannel = 0; targetChannel < sourceChannelIndices.length; ++targetChannel)
+		{
+			final String targetChannelName = stateTensorChannelNames[targetChannel];
+			
+			if (targetChannelName.startsWith("Piece Type "))
+			{
+				if (targetChannelName.endsWith(" from stack bottom.") || targetChannelName.endsWith(" from stack top."))
+				{
+					// TODO handle stacking games
+					throw new UnsupportedOperationException("Stacking games not yet handled by stateTensorSourceChannels()!");
+				}
+				else
+				{
+					final int pieceType = Integer.parseInt(
+							targetChannelName.substring("Piece Type ".length()).split(Pattern.quote(" "))[0]);
+					
+					final Component targetPiece = targetComps[pieceType];
+					final String targetPieceName = targetPiece.name();
+					final int owner = targetPiece.owner();
+					int bestMatch = -1;
+					
+					// First try to find a source piece with same name and same owner
+					for (int i = 1; i < sourceComps.length; ++i)
+					{
+						final Component sourcePiece = sourceComps[i];
+						if (sourcePiece.owner() == owner && sourcePiece.name().equals(targetPieceName))
+						{
+							bestMatch = i;
+							break;
+						}
+					}
+					
+					if (bestMatch == -1)
+					{
+						// Try to find a source piece with similar ludeme tree
+						final Tree ludemeTree = LudemeTreeUtils.buildLudemeZhangShashaTree(targetPiece.generator());
+						int lowestDist = Integer.MAX_VALUE;
+						
+						for (int i = 1; i < sourceComps.length; ++i)
+						{
+							final Component sourcePiece = sourceComps[i];
+							if (sourcePiece.owner() == owner)
+							{
+								final Tree otherTree = LudemeTreeUtils.buildLudemeZhangShashaTree(sourcePiece.generator());
+								final int treeEditDist = Tree.ZhangShasha(ludemeTree, otherTree);
+								
+								if (treeEditDist < lowestDist)
+								{
+									lowestDist = treeEditDist;
+									bestMatch = i;
+								}
+							}
+						}
+					}
+					
+					if (bestMatch >= 0)
+					{
+						int sourceChannelIdx = -1;
+						for (int i = 0; i < sourceChannelNames.length; ++i)
+						{
+							if (sourceChannelNames[i].equals("Piece Type " + bestMatch + " (" + sourceComps[bestMatch].name() + ")"))
+							{
+								sourceChannelIdx = i;
+								break;
+							}
+						}
+						sourceChannelIndices[targetChannel] = sourceChannelIdx;
+					}
+					else
+					{
+						sourceChannelIndices[targetChannel] = -1;
+					}
+				}
+			}
+			else if (targetChannelName.startsWith("Does position exist in container "))
+			{
+				final int containerIdx = Integer.parseInt(
+							targetChannelName.substring("Does position exist in container ".length()).split(Pattern.quote(" "))[0]);
+				
+				// For now we just search for container with same index, since usually we're consistent in how we
+				// order the containers in different games
+				
+				// TODO can probably do something smarter later. Like maybe looking at the ratio of sites that
+				// a container has relative to the number of sites across entire game?
+				
+				int idx = -1;
+				for (int i = 0; i < sourceChannelNames.length; ++i)
+				{
+					final String sourceChannelName = sourceChannelNames[i];
+					if (sourceChannelName.startsWith("Does position exist in container "))
+					{
+						final int sourceContainerIdx = Integer.parseInt(
+								sourceChannelName.substring("Does position exist in container ".length()).split(Pattern.quote(" "))[0]);
+						
+						if (containerIdx == sourceContainerIdx)
+						{
+							idx = i;
+							break;
+						}
+					}
+				}
+				
+				if (idx >= 0)
+				{
+					int sourceChannelIdx = -1;
+					for (int i = 0; i < sourceChannelNames.length; ++i)
+					{
+						if (sourceChannelNames[i].equals("Does position exist in container " + idx + " (" + sourceGame.game.equipment().containers()[idx].name() + ")?"))
+						{
+							sourceChannelIdx = i;
+							break;
+						}
+					}
+					sourceChannelIndices[targetChannel] = sourceChannelIdx;
+				}
+				else
+				{
+					sourceChannelIndices[targetChannel] = -1;
+				}
+			}
+			else if 
+			(
+				targetChannelName.equals("Stack sizes (non-binary channel!)")										||
+				targetChannelName.equals("Counts (non-binary channel!)")											||
+				targetChannelName.startsWith("Amount for Player ")													||
+				(targetChannelName.startsWith("Is Player ") && targetChannelName.endsWith(" the current mover?")) 	||
+				targetChannelName.startsWith("Local state >= ")														||
+				targetChannelName.startsWith("Local state == ")														||
+				targetChannelName.startsWith("Did Swap Occur?")														||
+				targetChannelName.startsWith("Last move's from-position")											||
+				targetChannelName.startsWith("Last move's to-position")												||
+				targetChannelName.startsWith("Second-to-last move's from-position")									||
+				targetChannelName.startsWith("Second-to-last move's to-position")														
+			)
+			{
+				sourceChannelIndices[targetChannel] = identicalChannelIdx(targetChannelName, sourceChannelNames);
+			}
+			else
+			{
+				throw new UnsupportedOperationException("stateTensorSourceChannels() does not recognise channel name: " + targetChannelName);
+			}
+		}
+		
+		return sourceChannelIndices;
+	}
+	
+	/**
+	 * @param targetChannel
+	 * @param sourceChannels
+	 * @return Index of source channel that is identical to given target channel.
+	 * 	Returns -1 if no identical source channel exists.
+	 */
+	private static int identicalChannelIdx(final String targetChannel, final String[] sourceChannels)
+	{
+		int idx = -1;
+		for (int i = 0; i < sourceChannels.length; ++i)
+		{
+			if (sourceChannels[i].equals(targetChannel))
+			{
+				idx = i;
+				break;
+			}
+		}
+		return idx;
+	}
+	
+	//-------------------------------------------------------------------------
+	
+	/**
 	 * Main method prints some relevant information for these wrappers
 	 * @param args
 	 */
@@ -742,17 +1073,13 @@ public final class LudiiGameWrapper
 				continue;
 
 			System.out.println("name = " + name);
-			final LudiiGameWrapper game = new LudiiGameWrapper(name);
+			final LudiiGameWrapper game = LudiiGameWrapper.construct(name);
 			
 			if (!game.game.hasSubgames())
 			{
 				System.out.println("State tensor shape = " + Arrays.toString(game.stateTensorsShape()));
 				System.out.println("Moves tensor shape = " + Arrays.toString(game.moveTensorsShape()));
 			}
-				
-//			System.out.println("Num distinct actions for " + game.name() + " = " + game.numDistinctActions());
-//			System.out.println(game.game.moveIntMapper());
-//			System.out.println();
 		}
 	}
 

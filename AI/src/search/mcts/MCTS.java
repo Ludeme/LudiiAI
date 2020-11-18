@@ -293,7 +293,7 @@ public class MCTS extends ExpertPolicy
 			
 			// Need to traverse parts of old tree corresponding to 
 			// actions played in the real game
-			final List<Move> actionHistory = context.trial().moves();
+			final List<Move> actionHistory = context.trial().generateCompleteMovesList();
 			int offsetActionToTraverse = actionHistory.size() - lastActionHistorySize;
 			
 			if (offsetActionToTraverse < 0)
@@ -348,7 +348,7 @@ public class MCTS extends ExpertPolicy
 				stopTime = startTime + (long) (autoPlaySeconds * 1000);
 		}
 		
-		lastActionHistorySize = context.trial().moves().size();
+		lastActionHistorySize = context.trial().numMoves();
 		
 		lastNumPlayoutActions = 0;
 		
@@ -404,13 +404,13 @@ public class MCTS extends ExpertPolicy
 							Play-out
 				 ********************************/
 				
-				final int numActionsBeforePlayout = current.contextRef().trial().moves().size();
+				final int numActionsBeforePlayout = current.contextRef().trial().numMoves();
 				
 				endTrial = playoutStrategy.runPlayout(playoutContext);
-				numPlayoutActions = (endTrial.moves().size() - numActionsBeforePlayout);
+				numPlayoutActions = (endTrial.numMoves() - numActionsBeforePlayout);
 				
 				lastNumPlayoutActions += 
-						(playoutContext.trial().moves().size() - numActionsBeforePlayout);
+						(playoutContext.trial().numMoves() - numActionsBeforePlayout);
 			}
 			
 			/***************************

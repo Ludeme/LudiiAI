@@ -375,7 +375,7 @@ public final class LudiiStateWrapper
 	 */
 	public void undoLastMove()
 	{
-		final List<Move> moves = new ArrayList<Move>(context.trial().moves());
+		final List<Move> moves = context.trial().generateCompleteMovesList();
 		reset();
 		
 		for (int i = context.trial().numInitialPlacementMoves(); i < moves.size() - 1; ++i)
@@ -565,9 +565,10 @@ public final class LudiiStateWrapper
 		currentChannel += containers.length;
 		
 		// Channels marking from and to of last Move
-		if (trial.moves().size() - trial.numInitialPlacementMoves() > 0)
+		final List<Move> trialMoves = trial.generateCompleteMovesList();
+		if (trialMoves.size() - trial.numInitialPlacementMoves() > 0)
 		{
-			final Move lastMove = trial.moves().get(trial.moves().size() - 1);
+			final Move lastMove = trialMoves.get(trialMoves.size() - 1);
 			final int from = lastMove.fromNonDecision();
 			
 			if (from != Constants.OFF)
@@ -587,9 +588,9 @@ public final class LudiiStateWrapper
 		}
 		
 		// And the same for move before last move
-		if (trial.moves().size() - trial.numInitialPlacementMoves() > 1)
+		if (trialMoves.size() - trial.numInitialPlacementMoves() > 1)
 		{
-			final Move lastLastMove = trial.moves().get(trial.moves().size() - 2);
+			final Move lastLastMove = trialMoves.get(trialMoves.size() - 2);
 			final int from = lastLastMove.fromNonDecision();
 			
 			if (from != Constants.OFF)

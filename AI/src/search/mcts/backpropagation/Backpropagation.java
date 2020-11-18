@@ -58,7 +58,7 @@ public final class Backpropagation
 		//System.out.println("utilities = " + Arrays.toString(utilities));
 		final boolean updateGRAVE = ((backpropFlags & GRAVE_STATS) != 0);
 		final List<MoveKey> moveKeysAMAF = new ArrayList<MoveKey>();
-		final List<Move> trialMoves = context.trial().moves();
+		final List<Move> trialMoves = context.trial().generateCompleteMovesList();
 		final int numTrialMoves = trialMoves.size();
 		int movesIdxAMAF = numTrialMoves - 1;
 		
