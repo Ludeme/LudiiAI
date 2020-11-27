@@ -389,7 +389,6 @@ public final class LudiiStateWrapper
 	 */
 	public float[] toTensorFlat()
 	{
-		// TODO some channels are always the same, precompute and reuse those
 		// TODO we also want to support edges and faces for some games
 		
 		final Container[] containers = game.game.equipment().containers();

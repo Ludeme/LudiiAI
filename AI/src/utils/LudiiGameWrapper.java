@@ -20,6 +20,9 @@ import metrics.support.zhang_shasha.Tree;
 import topology.TopologyElement;
 import util.GameLoader;
 import util.Move;
+import util.action.Action;
+import util.action.others.ActionPropose;
+import util.action.others.ActionVote;
 import utils.data_structures.ludeme_trees.LudemeTreeUtils;
 
 /**
@@ -128,6 +131,12 @@ public final class LudiiGameWrapper
 	
 	/** Maximum absolute distance we consider between from and to positions for move tensors */
 	protected final int moveTensorDistClip;
+	
+	/** Channel index for the first proposition channel in move-tensor-representation */
+	protected int FIRST_PROPOSITION_CHANNEL_IDX;
+	
+	/** Channel index for the first vote channel in move-tensor-representation */
+	protected int FIRST_VOTE_CHANNEL_IDX;
 	
 	/** Channel index for Pass move in move-tensor-representation */
 	protected int MOVE_PASS_CHANNEL_IDX;
@@ -333,7 +342,39 @@ public final class LudiiGameWrapper
 	 */
 	public int[] moveToTensor(final Move move)
 	{
-		if (move.isPass())
+		if (move.isPropose())
+		{
+			int offset = 0;
+			
+			for (final Action a : move.actions())
+			{
+				if (a instanceof ActionPropose && a.isDecision())
+				{
+					final ActionPropose action = (ActionPropose) a;
+					offset = action.propositionInt();
+					break;
+				}
+			}
+			
+			return new int[] {FIRST_PROPOSITION_CHANNEL_IDX + offset, 0, 0};
+		}
+		else if (move.isVote())
+		{
+			int offset = 0;
+			
+			for (final Action a : move.actions())
+			{
+				if (a instanceof ActionVote && a.isDecision())
+				{
+					final ActionVote action = (ActionVote) a;
+					offset = action.voteInt();
+					break;
+				}
+			}
+			
+			return new int[] {FIRST_VOTE_CHANNEL_IDX + offset, 0, 0};
+		}
+		else if (move.isPass())
 		{
 			return new int[] {MOVE_PASS_CHANNEL_IDX, 0, 0};
 		}
@@ -707,7 +748,20 @@ public final class LudiiGameWrapper
 		assert (channelNames.size() == stateTensorNumChannels);
 		stateTensorChannelNames = channelNames.toArray(new String[stateTensorNumChannels]);
 		
-		MOVE_PASS_CHANNEL_IDX = computeMovePassChannelIdx();
+		final int firstAuxilChannelIdx = computeFirstAuxilChannelIdx();
+		
+		if (game.usesVote())
+		{
+			FIRST_PROPOSITION_CHANNEL_IDX = firstAuxilChannelIdx;
+			FIRST_VOTE_CHANNEL_IDX = FIRST_PROPOSITION_CHANNEL_IDX + game.numVoteStrings();
+			
+			MOVE_PASS_CHANNEL_IDX = FIRST_VOTE_CHANNEL_IDX + game.numVoteStrings();
+		}
+		else
+		{
+			MOVE_PASS_CHANNEL_IDX = firstAuxilChannelIdx;
+		}
+		
 		MOVE_SWAP_CHANNEL_IDX = MOVE_PASS_CHANNEL_IDX + 1;
 		
 		ALL_ONES_CHANNEL_FLAT = new float[tensorDimX * tensorDimY];
@@ -729,9 +783,9 @@ public final class LudiiGameWrapper
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * @return Channel index for Pass move in move-tensor-representation
+	 * @return First channel index for auxiliary in move-tensor-representation
 	 */
-	private int computeMovePassChannelIdx()
+	private int computeFirstAuxilChannelIdx()
 	{
 		// legal values for diff x = {-clip, ..., -2, -1, 0, 1, 2, ..., +clip}
 		final int numValsDiffX = 2 * moveTensorDistClip + 1;

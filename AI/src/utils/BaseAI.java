@@ -1,19 +1,16 @@
 package utils;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import game.Game;
-import main.collections.FastArrayList;
 import util.AI;
 import util.Context;
 import util.Move;
 
 /**
- * AI player which selects actions uniformly at random.
+ * AI player doing nothing.
  * 
- * @author Dennis Soemers
+ * @author Eric.Piette
  */
-public class RandomAI extends AI
+public class BaseAI extends AI
 {
 
 	//-------------------------------------------------------------------------
@@ -29,9 +26,9 @@ public class RandomAI extends AI
 	/**
 	 * Constructor
 	 */
-	public RandomAI()
+	public BaseAI()
 	{
-		friendlyName = "Random";
+		friendlyName = "Base";
 	}
 
 	//-------------------------------------------------------------------------
@@ -46,15 +43,7 @@ public class RandomAI extends AI
 		final int maxDepth
 	)
 	{
-		FastArrayList<Move> legalMoves = game.moves(context).moves();
-
-		if (!game.isAlternatingMoveGame())
-			legalMoves = AIUtils.extractMovesForMover(legalMoves, player);
-
-		final int r = ThreadLocalRandom.current().nextInt(legalMoves.size());
-		final Move move = legalMoves.get(r);
-		lastReturnedMove = move;
-		return move;
+		return null;
 	}
 	
 	/**

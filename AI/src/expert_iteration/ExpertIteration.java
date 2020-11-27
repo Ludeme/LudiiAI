@@ -461,7 +461,7 @@ public class ExpertIteration
 									report
 							);
 							
-							if (bestAgent.agent().equals("AlphaBeta"))
+							if (bestAgent.agent().equals("AlphaBeta") || bestAgent.agent().equals("Alpha-Beta"))
 							{
 								ai = new AlphaBetaSearch(bestAgentsDataDir + "/BestHeuristics.txt");
 							}
