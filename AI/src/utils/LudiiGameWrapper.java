@@ -1031,16 +1031,7 @@ public final class LudiiGameWrapper
 				
 				if (idx >= 0)
 				{
-					int sourceChannelIdx = -1;
-					for (int i = 0; i < sourceChannelNames.length; ++i)
-					{
-						if (sourceChannelNames[i].equals("Does position exist in container " + idx + " (" + sourceGame.game.equipment().containers()[idx].name() + ")?"))
-						{
-							sourceChannelIdx = i;
-							break;
-						}
-					}
-					sourceChannelIndices[targetChannel] = sourceChannelIdx;
+					sourceChannelIndices[targetChannel] = idx;
 				}
 				else
 				{

@@ -54,7 +54,7 @@ public final class MaxAvgScore implements FinalMoveSelectionStrategy
 	//-------------------------------------------------------------------------
 	
 	@Override
-	public void customize(final String[] inputs)
+	public void customise(final String[] inputs)
 	{
 		// do nothing
 	}

@@ -131,7 +131,7 @@ public class FlatMonteCarlo extends AI
         
         for (int i = 0; i < numActions; ++i) 
         {
-            final double avgScore = (double) sumScores[i] / numVisits[i];
+            final double avgScore = numVisits[i] == 0 ? -100.0 : (double) sumScores[i] / numVisits[i];
             //System.out.println("avgScore for " + legalMoves.get(i) + " = " + avgScore);
 
             if (avgScore > maxAvgScore)

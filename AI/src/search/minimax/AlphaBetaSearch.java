@@ -951,12 +951,20 @@ public class AlphaBetaSearch extends ExpertPolicy
 	@Override
 	public ExItExperience generateExItExperience()
 	{
+		final FastArrayList<Move> actions = new FastArrayList<Move>(currentRootMoves.size());
+		for (int i = 0; i < currentRootMoves.size(); ++i)
+		{
+			final Move m = new Move(currentRootMoves.get(i));
+    		m.then().clear();	// Can't serialise these, and won't need them
+    		actions.add(m);
+		}
+		
     	return new ExItExperience
     			(
     				new ExItExperienceState(lastSearchedRootContext),
-    				currentRootMoves,
+    				actions,
     				computeExpertPolicy(1.0),
-    				FVector.zeros(currentRootMoves.size())
+    				FVector.zeros(actions.size())
     			);
 	}
 	

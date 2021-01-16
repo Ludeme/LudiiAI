@@ -45,7 +45,7 @@ public final class ProportionalExpVisitCount implements FinalMoveSelectionStrate
 	//-------------------------------------------------------------------------
 
 	@Override
-	public void customize(final String[] inputs) 
+	public void customise(final String[] inputs) 
 	{
 		for (final String input : inputs)
 		{

@@ -48,7 +48,7 @@ public final class RobustChild implements FinalMoveSelectionStrategy
 	//-------------------------------------------------------------------------
 	
 	@Override
-	public void customize(final String[] inputs)
+	public void customise(final String[] inputs)
 	{
 		// do nothing
 	}

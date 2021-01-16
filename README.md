@@ -77,6 +77,7 @@ Alternatively, the following email address may be used: `ludii(dot)games(at)gmai
 
 ## Changelog
 
+- 16 January, 2021: Updated AI code for Ludii v1.1.12.
 - 27 November, 2020: Updated AI code for Ludii v1.1.4.
 - 18 November, 2020: Updated AI code for Ludii v1.1.1.
 - 28 October, 2020: Updated AI code for Ludii v1.0.9.

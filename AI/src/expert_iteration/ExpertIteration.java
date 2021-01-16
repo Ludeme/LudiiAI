@@ -34,6 +34,7 @@ import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.set.hash.TIntHashSet;
 import main.CommandLineArgParse;
 import main.CommandLineArgParse.ArgOption;
 import main.CommandLineArgParse.OptionTypes;
@@ -48,8 +49,11 @@ import optimisers.Optimiser;
 import optimisers.OptimiserFactory;
 import policies.softmax.SoftmaxPolicy;
 import search.mcts.MCTS;
+import search.mcts.finalmoveselection.ActRegPolOpt;
 import search.mcts.finalmoveselection.RobustChild;
 import search.mcts.selection.AG0Selection;
+import search.mcts.selection.SearchRegPolOpt;
+import search.mcts.utils.RegPolOptMCTS;
 import search.minimax.AlphaBetaSearch;
 import util.AI;
 import util.Context;
@@ -200,6 +204,9 @@ public class ExpertIteration
 	
 	/** If true, we don't do any value function learning */
 	protected boolean noValueLearning;
+	
+	/** If true, Biased MCTS will use Act, Search and Learn as described in the MCTS as Regularized Policy Optimization paper */
+	protected boolean mctsRegPolOpt;
 	
 	
 	/*
@@ -499,6 +506,28 @@ public class ExpertIteration
 								
 								ai = MCTS.createBiasedMCTS(features, false);
 							}
+							else if (bestAgent.agent().equals("Biased MCTS (RegPolOpt)"))
+							{
+								final Features features = (Features) language.compiler.Compiler.compileObject
+								(
+									FileHandling.loadTextContentsFromFile(bestAgentsDataDir + "/BestFeatures.txt"), 
+									"metadata.ai.features.Features",
+									report
+								);
+								
+								ai = MCTS.createRegPolOptMCTS(features, true);
+							}
+							else if (bestAgent.agent().equals("Biased MCTS (RegPolOpt, Uniform Playouts)"))
+							{
+								final Features features = (Features) language.compiler.Compiler.compileObject
+								(
+									FileHandling.loadTextContentsFromFile(bestAgentsDataDir + "/BestFeatures.txt"), 
+									"metadata.ai.features.Features",
+									report
+								);
+								
+								ai = MCTS.createRegPolOptMCTS(features, false);
+							}
 							else if (bestAgent.agent().equals("Random"))
 							{
 								// Don't wanna train with Random, so we'll take UCT instead
@@ -534,13 +563,27 @@ public class ExpertIteration
 					}
 					else if (expertAI.equals("Biased MCTS"))
 					{
-						final MCTS mcts = 
+						final MCTS mcts;
+						if (mctsRegPolOpt)
+						{
+							mcts = 
+								new MCTS
+								(
+									new SearchRegPolOpt(), 
+									playoutPolicy,
+									new ActRegPolOpt()
+								);
+						}
+						else
+						{
+							mcts = 
 								new MCTS
 								(
 									new AG0Selection(), 
 									playoutPolicy,
 									new RobustChild()
 								);
+						}
 						
 						mcts.setLearnedSelectionPolicy(cePolicy);
 						mcts.friendlyName = "Biased MCTS";
@@ -716,7 +759,11 @@ public class ExpertIteration
 							legalMoves.add(legalMove);
 						}
 
-						final FVector expertDistribution = expert.computeExpertPolicy(1.0);
+						final FVector expertDistribution;
+						if (mctsRegPolOpt)
+							expertDistribution = RegPolOptMCTS.computePiBar(((MCTS)expert).rootNode(), 2.5);	// TODO this 2.5 should track hyperparam in Selection
+						else
+							expertDistribution = expert.computeExpertPolicy(1.0);
 						
 						if (ceExplore)
 						{
@@ -1856,7 +1903,7 @@ public class ExpertIteration
 					{
 						final int p = newlyCreated.getQuick(f);
 						
-						final TIntArrayList featuresToRemove = new TIntArrayList();
+						final TIntHashSet featuresToRemove = new TIntHashSet();
 						final FeatureSet featureSet = featureSets[p];
 						final int numAtomicFeatures = featureSet.getNumFeatures();
 						
@@ -3026,6 +3073,10 @@ public class ExpertIteration
 				.withNames("--no-value-learning")
 				.help("If true, we don't do any value function learning.")
 				.withType(OptionTypes.Boolean));
+		argParse.addOption(new ArgOption()
+				.withNames("--mcts-as-reg-pol-opt")
+				.help("If true, we use Act, Search, and Learn as described in the MCTS as regularized policy optimization paper for Biased MCTS.")
+				.withType(OptionTypes.Boolean));
 
 		argParse.addOption(new ArgOption()
 				.withNames("--max-biased-playout-actions", "--max-num-biased-playout-actions")
@@ -3134,6 +3185,7 @@ public class ExpertIteration
 		exIt.noCEExploreIS = argParse.getValueBool("--no-ce-explore-is");
 		exIt.weightedImportanceSampling = argParse.getValueBool("--wis");
 		exIt.noValueLearning = argParse.getValueBool("--no-value-learning");
+		exIt.mctsRegPolOpt = argParse.getValueBool("--mcts-as-reg-pol-opt");
 		
 		exIt.maxNumBiasedPlayoutActions = argParse.getValueInt("--max-num-biased-playout-actions");
 		

@@ -14,6 +14,7 @@ import metadata.ai.features.Features;
 import policies.softmax.SoftmaxFromMetadata;
 import policies.softmax.SoftmaxPolicy;
 import search.mcts.backpropagation.Backpropagation;
+import search.mcts.finalmoveselection.ActRegPolOpt;
 import search.mcts.finalmoveselection.FinalMoveSelectionStrategy;
 import search.mcts.finalmoveselection.MaxAvgScore;
 import search.mcts.finalmoveselection.ProportionalExpVisitCount;
@@ -24,6 +25,7 @@ import search.mcts.nodes.OpenLoopNode;
 import search.mcts.playout.PlayoutStrategy;
 import search.mcts.playout.RandomPlayout;
 import search.mcts.selection.AG0Selection;
+import search.mcts.selection.SearchRegPolOpt;
 import search.mcts.selection.SelectionStrategy;
 import search.mcts.selection.UCB1;
 import util.AI;
@@ -240,6 +242,30 @@ public class MCTS extends ExpertPolicy
 		
 		mcts.setLearnedSelectionPolicy(softmax);
 		mcts.friendlyName = biasPlayouts ? "Biased MCTS" : "Biased MCTS (Uniform Playouts)";
+		
+		return mcts;
+	}
+	
+	/**
+	 * Creates a Biased MCTS agent using given collection of features
+	 * 
+	 * @param features
+	 * @param biasPlayouts
+	 * @return Biased MCTS agent
+	 */
+	public static MCTS createRegPolOptMCTS(final Features features, final boolean biasPlayouts)
+	{
+		final SoftmaxPolicy softmax = new SoftmaxPolicy(features);
+		final MCTS mcts = 
+				new MCTS
+				(
+					new SearchRegPolOpt(), 
+					biasPlayouts ? softmax : new RandomPlayout(200),
+					new ActRegPolOpt()
+				);
+		
+		mcts.setLearnedSelectionPolicy(softmax);
+		mcts.friendlyName = biasPlayouts ? "Biased MCTS (RegPolOpt)" : "Biased MCTS (RegPolOpt, Uniform Playouts)";
 		
 		return mcts;
 	}
@@ -833,12 +859,12 @@ public class MCTS extends ExpertPolicy
 				if (lineParts[0].toLowerCase().endsWith("maxavgscore"))
 				{
 					finalMove = new MaxAvgScore();
-					finalMove.customize(lineParts);
+					finalMove.customise(lineParts);
 				}
 				else if (lineParts[0].toLowerCase().endsWith("robustchild"))
 				{
 					finalMove = new RobustChild();
-					finalMove.customize(lineParts);
+					finalMove.customise(lineParts);
 				}
 				else if 
 				(
@@ -847,7 +873,7 @@ public class MCTS extends ExpertPolicy
 				)
 				{
 					finalMove = new ProportionalExpVisitCount(1.0);
-					finalMove.customize(lineParts);
+					finalMove.customise(lineParts);
 				}
 				else
 				{

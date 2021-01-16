@@ -117,7 +117,7 @@ public abstract class BaseNode
 	
 	/**
 	 * @return Distribution over legal moves in this node (in current iteration)
-	 * compured by learned Selection policy
+	 * computed by learned Selection policy
 	 */
 	public abstract FVector learnedSelectionPolicy();
 	
@@ -556,7 +556,9 @@ public abstract class BaseNode
     	for (int i = 0; i < numLegalMoves(); ++i)
     	{
     		final BaseNode child = childForNthLegalMove(i);
-    		actions.add(nthLegalMove(i));
+    		final Move m = new Move(nthLegalMove(i));
+    		m.then().clear();	// Can't serialise these, and won't need them
+    		actions.add(m);
     		
     		if (child == null)
     			valueEstimates[i] = -1.f;

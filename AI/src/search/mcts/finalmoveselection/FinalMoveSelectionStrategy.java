@@ -28,11 +28,11 @@ public interface FinalMoveSelectionStrategy
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * Customize the final move selection strategy based on a list of given string inputs
+	 * Customise the final move selection strategy based on a list of given string inputs
 	 * 
 	 * @param inputs
 	 */
-	public void customize(final String[] inputs);
+	public void customise(final String[] inputs);
 
 	//-------------------------------------------------------------------------
 	
