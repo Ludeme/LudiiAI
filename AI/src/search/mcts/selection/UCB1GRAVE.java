@@ -2,9 +2,10 @@ package search.mcts.selection;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import search.mcts.MCTS;
+import search.mcts.MCTS.MoveKey;
 import search.mcts.backpropagation.Backpropagation;
 import search.mcts.nodes.BaseNode;
-import search.mcts.nodes.BaseNode.MoveKey;
 import search.mcts.nodes.BaseNode.NodeStatistics;
 import util.Move;
 
@@ -68,7 +69,7 @@ public class UCB1GRAVE implements SelectionStrategy
 	//-------------------------------------------------------------------------
 
 	@Override
-	public int select(final BaseNode current)
+	public int select(final MCTS mcts, final BaseNode current)
 	{
 		int bestIdx = -1;
         double bestValue = Double.NEGATIVE_INFINITY;

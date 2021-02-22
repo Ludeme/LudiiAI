@@ -2,13 +2,13 @@ package search.mcts.selection;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 
 /**
  * UCB1 Selection Strategy, as commonly used in UCT.
  * 
  * @author Dennis Soemers
- *
  */
 public final class UCB1 implements SelectionStrategy
 {
@@ -40,7 +40,7 @@ public final class UCB1 implements SelectionStrategy
 	//-------------------------------------------------------------------------
 
 	@Override
-	public int select(final BaseNode current)
+	public int select(final MCTS mcts, final BaseNode current)
 	{
 		int bestIdx = -1;
         double bestValue = Double.NEGATIVE_INFINITY;

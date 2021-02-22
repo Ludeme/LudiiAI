@@ -13,6 +13,8 @@ import game.rules.play.moves.Moves;
 import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import playout_move_selectors.FeaturesSoftmaxMoveSelector;
+import search.mcts.MCTS;
 import util.Context;
 import util.Move;
 import util.Trial;
@@ -215,7 +217,7 @@ public class GreedyPolicy extends Policy
 	//-------------------------------------------------------------------------
 	
 	@Override
-	public Trial runPlayout(final Context context) 
+	public Trial runPlayout(final MCTS mcts, final Context context) 
 	{
 		final FVector[] params = new FVector[linearFunctions.length];
 		for (int i = 0; i < linearFunctions.length; ++i)
@@ -235,11 +237,9 @@ public class GreedyPolicy extends Policy
 					context, 
 					null, 
 					1.0, 
-					featureSets, 
-					params, 
+					new FeaturesSoftmaxMoveSelector(featureSets, params), 
 					-1,
 					playoutTurnLimit,
-					-1.f, 
 					ThreadLocalRandom.current()
 				);
 	}
@@ -248,6 +248,12 @@ public class GreedyPolicy extends Policy
 	public boolean playoutSupportsGame(final Game game)
 	{
 		return supportsGame(game);
+	}
+	
+	@Override
+	public int backpropFlags()
+	{
+		return 0;
 	}
 
 	@Override

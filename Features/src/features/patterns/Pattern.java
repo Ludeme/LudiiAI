@@ -88,6 +88,10 @@ public class Pattern
 	{
 		int currIdx = 0;	// move through the entire string
 		
+		// Default enable reflection and rotations if not specified
+		allowsReflection = true;
+		allowedRotations = null;
+		
 		while (currIdx < string.length())
 		{
 			if (string.startsWith("refl=true,", currIdx))
@@ -884,14 +888,8 @@ public class Pattern
 	{
 		String str = "";
 		
-		if (allowsReflection)
-		{
-			str += "refl=true,";
-		}
-		else
-		{
+		if (!allowsReflection)
 			str += "refl=false,";
-		}
 		
 		String rotsStr;
 		if (allowedRotations != null)
@@ -912,7 +910,8 @@ public class Pattern
 			rotsStr = "all";
 		}
 		
-		str += String.format("rots=%s,", rotsStr);
+		if (allowedRotations != null)
+			str += String.format("rots=%s,", rotsStr);
 		
 		str += String.format("els=%s", featureElements);
 		

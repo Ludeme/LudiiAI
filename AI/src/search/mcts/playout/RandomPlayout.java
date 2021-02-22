@@ -3,6 +3,7 @@ package search.mcts.playout;
 import java.util.concurrent.ThreadLocalRandom;
 
 import game.Game;
+import search.mcts.MCTS;
 import util.Context;
 import util.Trial;
 
@@ -42,9 +43,15 @@ public final class RandomPlayout implements PlayoutStrategy
 	//-------------------------------------------------------------------------
 	
 	@Override
-	public Trial runPlayout(final Context context) 
+	public Trial runPlayout(final MCTS mcts, final Context context) 
 	{
-		return context.game().playout(context, null, 1.0, null, null, 0, playoutTurnLimit, -1.f, ThreadLocalRandom.current());
+		return context.game().playout(context, null, 1.0, null, 0, playoutTurnLimit, ThreadLocalRandom.current());
+	}
+	
+	@Override
+	public int backpropFlags()
+	{
+		return 0;
 	}
 	
 	//-------------------------------------------------------------------------

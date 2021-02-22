@@ -28,11 +28,14 @@ import search.flat.FlatMonteCarlo;
 import search.mcts.MCTS;
 import search.mcts.MCTS.QInit;
 import search.mcts.finalmoveselection.RobustChild;
+import search.mcts.playout.MAST;
 import search.mcts.playout.RandomPlayout;
 import search.mcts.selection.McGRAVE;
+import search.mcts.selection.ProgressiveHistory;
 import search.mcts.selection.UCB1;
 import search.mcts.selection.UCB1GRAVE;
 import search.minimax.AlphaBetaSearch;
+import search.minimax.BRSPlus;
 import util.AI;
 
 /**
@@ -78,6 +81,9 @@ public class AIFactory
 		if (string.equalsIgnoreCase("Alpha-Beta") || string.equalsIgnoreCase("AlphaBeta"))
 			return AlphaBetaSearch.createAlphaBeta();
 		
+		if (string.equalsIgnoreCase("BRS+") || string.equalsIgnoreCase("Best-Reply Search+"))
+			return new BRSPlus();
+		
 		if (string.equalsIgnoreCase("UCT") || string.equalsIgnoreCase("MCTS"))
 			return MCTS.createUCT();
 		
@@ -92,8 +98,35 @@ public class AIFactory
 					);
 			mcGRAVE.setQInit(QInit.INF);
 			mcGRAVE.friendlyName = "MC-GRAVE";
-			//mcGRAVE.setTreeReuse(false);
 			return mcGRAVE;
+		}
+		
+		if (string.equalsIgnoreCase("Progressive History"))
+		{
+			final MCTS progressiveHistory =
+					new MCTS
+					(
+						new ProgressiveHistory(),
+						new RandomPlayout(200),
+						new RobustChild()
+					);
+			progressiveHistory.setQInit(QInit.PARENT);
+			progressiveHistory.friendlyName = "Progressive History";
+			return progressiveHistory;
+		}
+		
+		if (string.equalsIgnoreCase("MAST"))
+		{
+			final MCTS mast =
+					new MCTS
+					(
+						new UCB1(),
+						new MAST(200, 0.1),
+						new RobustChild()
+					);
+			mast.setQInit(QInit.PARENT);
+			mast.friendlyName = "MAST";
+			return mast;
 		}
 		
 		if (string.equalsIgnoreCase("UCB1-GRAVE"))
@@ -106,7 +139,6 @@ public class AIFactory
 						new RobustChild()
 					);
 			ucb1GRAVE.friendlyName = "UCB1-GRAVE";
-			//ucb1GRAVE.setTreeReuse(false);
 			return ucb1GRAVE;
 		}
 		
@@ -296,14 +328,38 @@ public class AIFactory
 			final MCTS mcGRAVE = new MCTS(new McGRAVE(), new RandomPlayout(200), new RobustChild());
 			mcGRAVE.setQInit(QInit.INF);
 			mcGRAVE.friendlyName = "MC-GRAVE";
-			//mcGRAVE.setTreeReuse(false);
 			return mcGRAVE;
+		}
+		else if (algName.equalsIgnoreCase("Progressive History"))
+		{
+			final MCTS progressiveHistory =
+					new MCTS
+					(
+						new ProgressiveHistory(),
+						new RandomPlayout(200),
+						new RobustChild()
+					);
+			progressiveHistory.setQInit(QInit.PARENT);
+			progressiveHistory.friendlyName = "Progressive History";
+			return progressiveHistory;
+		}
+		else if (algName.equalsIgnoreCase("MAST"))
+		{
+			final MCTS mast =
+					new MCTS
+					(
+						new UCB1(),
+						new MAST(200, 0.1),
+						new RobustChild()
+					);
+			mast.setQInit(QInit.PARENT);
+			mast.friendlyName = "MAST";
+			return mast;
 		}
 		else if (algName.equalsIgnoreCase("UCB1-GRAVE"))
 		{
 			final MCTS ucb1GRAVE = new MCTS(new UCB1GRAVE(), new RandomPlayout(200), new RobustChild());
 			ucb1GRAVE.friendlyName = "UCB1-GRAVE";
-			//ucb1GRAVE.setTreeReuse(false);
 			return ucb1GRAVE;
 		}
 		else if (algName.equalsIgnoreCase("Biased MCTS"))
@@ -317,6 +373,10 @@ public class AIFactory
 		else if (algName.equalsIgnoreCase("Alpha-Beta") || algName.equalsIgnoreCase("AlphaBeta"))
 		{
 			return AlphaBetaSearch.createAlphaBeta();
+		}
+		else if (algName.equalsIgnoreCase("BRS+") || algName.equalsIgnoreCase("Best-Reply Search+"))
+		{
+			return new BRSPlus();
 		}
 		else if (algName.equalsIgnoreCase("From JAR"))
 		{

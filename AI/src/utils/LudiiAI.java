@@ -77,6 +77,8 @@ public final class LudiiAI extends AI
 			);
 		}
 		
+		assert(currentAgent.supportsGame(game));
+		
 		currentAgent.initAI(game, playerID);
 	}
 	
@@ -111,6 +113,14 @@ public final class LudiiAI extends AI
 			return currentAgent.aiVisualisationData();
 		else
 			return null;
+	}
+	
+	@Override
+	public void setWantsInterrupt(final boolean val)
+	{
+		super.setWantsInterrupt(val);
+		if (currentAgent != null)
+			currentAgent.setWantsInterrupt(val);
 	}
 	
 	//-------------------------------------------------------------------------

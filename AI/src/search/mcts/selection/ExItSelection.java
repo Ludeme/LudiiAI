@@ -3,6 +3,7 @@ package search.mcts.selection;
 import java.util.concurrent.ThreadLocalRandom;
 
 import main.collections.FVector;
+import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 
 /**
@@ -54,7 +55,7 @@ public final class ExItSelection implements SelectionStrategy
 	//-------------------------------------------------------------------------
 
 	@Override
-	public int select(final BaseNode current)
+	public int select(final MCTS mcts, final BaseNode current)
 	{
 		int bestIdx = -1;
         double bestValue = Double.NEGATIVE_INFINITY;

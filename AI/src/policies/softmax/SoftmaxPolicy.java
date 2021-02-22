@@ -24,10 +24,14 @@ import main.collections.FVector;
 import main.collections.FastArrayList;
 import metadata.ai.features.Features;
 import metadata.ai.misc.Pair;
+import playout_move_selectors.EpsilonGreedyWrapper;
+import playout_move_selectors.FeaturesSoftmaxMoveSelector;
 import policies.Policy;
+import search.mcts.MCTS;
 import util.Context;
 import util.Move;
 import util.Trial;
+import util.playout.PlayoutMoveSelector;
 import utils.ExperimentFileUtils;
 
 /**
@@ -76,8 +80,8 @@ public class SoftmaxPolicy extends Policy
 	/** Auto-end playouts in a draw if they take more turns than this */
 	protected int playoutTurnLimit = -1;
 	
-	/** If >= 0, moves in playouts will be played immediately once their feature weights exceed this threshold */
-	protected float autoPlayThreshold = -1.f;
+	/** Epsilon for epsilon-greedy playouts */
+	protected double epsilon = 0.0;
 	
 	//-------------------------------------------------------------------------
 	
@@ -135,12 +139,24 @@ public class SoftmaxPolicy extends Policy
 	 */
 	public SoftmaxPolicy(final Features features)
 	{
+		this(features, 0.0);
+	}
+	
+	/**
+	 * Constructs a softmax policy from a given set of features as created
+	 * by the compiler.
+	 * 
+	 * @param features
+	 * @param epsilon Epsilon for epsilon-greedy playouts
+	 */
+	public SoftmaxPolicy(final Features features, final double epsilon)
+	{
 		final List<FeatureSet> featureSetsList = new ArrayList<FeatureSet>();
 		final List<LinearFunction> linFuncs = new ArrayList<LinearFunction>();
 				
 		for (final metadata.ai.features.FeatureSet featureSet : features.featureSets())
 		{
-			if (featureSet.role() == RoleType.Shared)
+			if (featureSet.role() == RoleType.Shared || featureSet.role() == RoleType.Neutral)
 				addFeatureSetWeights(0, featureSet.featureStrings(), featureSet.featureWeights(), featureSetsList, linFuncs);
 			else
 				addFeatureSetWeights(featureSet.role().owner(), featureSet.featureStrings(), featureSet.featureWeights(), featureSetsList, linFuncs);
@@ -148,6 +164,7 @@ public class SoftmaxPolicy extends Policy
 		
 		this.featureSets = featureSetsList.toArray(new FeatureSet[featureSetsList.size()]);
 		this.linearFunctions = linFuncs.toArray(new LinearFunction[linFuncs.size()]);
+		this.epsilon = epsilon;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -308,7 +325,7 @@ public class SoftmaxPolicy extends Policy
 	 */
 	public void updateFeatureSets(final FeatureSet[] newFeatureSets)
 	{
-		for (int i = 0; i < featureSets.length; ++i)
+		for (int i = 0; i < linearFunctions.length; ++i)
 		{
 			if (newFeatureSets[i] != null)
 			{
@@ -321,13 +338,19 @@ public class SoftmaxPolicy extends Policy
 				
 				featureSets[i] = newFeatureSets[i];
 			}
+			else if (newFeatureSets[0] != null)
+			{
+				// Handle the case where all players have different functions but share the 0th feature set
+				// TODO hardcoded assumption of just a single feature added here
+				linearFunctions[i].setTheta(linearFunctions[i].trainableParams().append(0.f));
+			}
 		}
 	}
 	
 	//-------------------------------------------------------------------------
 	
 	@Override
-	public Trial runPlayout(final Context context) 
+	public Trial runPlayout(final MCTS mcts, final Context context) 
 	{
 		final FVector[] params = new FVector[linearFunctions.length];
 		for (int i = 0; i < linearFunctions.length; ++i)
@@ -342,16 +365,27 @@ public class SoftmaxPolicy extends Policy
 			}
 		}
 		
+		final PlayoutMoveSelector playoutMoveSelector;
+		if (epsilon < 1.0)
+		{
+			if (epsilon <= 0.0)
+				playoutMoveSelector = new FeaturesSoftmaxMoveSelector(featureSets, params);
+			else
+				playoutMoveSelector = new EpsilonGreedyWrapper(new FeaturesSoftmaxMoveSelector(featureSets, params), epsilon);
+		}
+		else
+		{
+			playoutMoveSelector = null;
+		}
+		
 		return context.game().playout
 				(
 					context, 
 					null, 
 					1.0, 
-					featureSets, 
-					params, 
+					playoutMoveSelector,
 					playoutActionLimit,
 					playoutTurnLimit,
-					autoPlayThreshold,
 					ThreadLocalRandom.current()
 				);
 	}
@@ -360,6 +394,12 @@ public class SoftmaxPolicy extends Policy
 	public boolean playoutSupportsGame(final Game game)
 	{
 		return supportsGame(game);
+	}
+	
+	@Override
+	public int backpropFlags()
+	{
+		return 0;
 	}
 
 	@Override
@@ -418,9 +458,9 @@ public class SoftmaxPolicy extends Policy
 					boosted = true;
 				}
 			}
-			else if (input.toLowerCase().startsWith("auto_play_threshold="))
+			else if (input.toLowerCase().startsWith("epsilon="))
 			{
-				autoPlayThreshold = Float.parseFloat(input.substring("auto_play_threshold=".length()));
+				epsilon = Double.parseDouble(input.substring("epsilon=".length()));
 			}
 		}
 		
@@ -575,7 +615,13 @@ public class SoftmaxPolicy extends Policy
 			
 			for (int i = 0; i < pairs.length; ++i)
 			{
-				pairs[i] = new Pair(featureSet.features()[i].toString(), Float.valueOf(linFunc.effectiveParams().get(i)));
+				final float weight = linFunc.effectiveParams().get(i);
+				pairs[i] = new Pair(featureSet.features()[i].toString(), Float.valueOf(weight));
+				
+				if (Float.isNaN(weight))
+					System.err.println("WARNING: writing NaN weight");
+				else if (Float.isInfinite(weight))
+					System.err.println("WARNING: writing infinity weight");
 			}
 			
 			features = new Features(new metadata.ai.features.FeatureSet(RoleType.Shared, pairs));
@@ -585,15 +631,24 @@ public class SoftmaxPolicy extends Policy
 			// One featureset per player
 			final metadata.ai.features.FeatureSet[] metadataFeatureSets = new metadata.ai.features.FeatureSet[featureSets.length - 1];
 			
-			for (int p = 1; p < featureSets.length; ++p)
+			for (int p = 0; p < featureSets.length; ++p)
 			{
 				final FeatureSet featureSet = featureSets[p];
+				if (featureSet == null)
+					continue;
+				
 				final LinearFunction linFunc = linearFunctions[p];
 				final Pair[] pairs = new Pair[featureSet.features().length];
 				
 				for (int i = 0; i < pairs.length; ++i)
 				{
-					pairs[i] = new Pair(featureSet.features()[i].toString(), Float.valueOf(linFunc.effectiveParams().get(i)));
+					final float weight = linFunc.effectiveParams().get(i);
+					pairs[i] = new Pair(featureSet.features()[i].toString(), Float.valueOf(weight));
+					
+					if (Float.isNaN(weight))
+						System.err.println("WARNING: writing NaN weight");
+					else if (Float.isInfinite(weight))
+						System.err.println("WARNING: writing infinity weight");
 				}
 				
 				metadataFeatureSets[p - 1] = new metadata.ai.features.FeatureSet(RoleType.roleForPlayerId(p), pairs);

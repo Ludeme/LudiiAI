@@ -1,6 +1,8 @@
 package search.mcts;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.json.JSONObject;
 
@@ -161,12 +163,20 @@ public class MCTS extends ExpertPolicy
 	 */
 	protected int lastActionHistorySize = 0;
 	
+	/** Decay factor for global action statistics when reusing trees */
+	protected final double globalActionDecayFactor = 0.6;
+	
 	//-------------------------------------------------------------------------
 	
 	/** A learned policy to use in Selection phase */
 	protected SoftmaxPolicy learnedSelectionPolicy = null;
 	
 	//-------------------------------------------------------------------------
+	
+	/** Table of global (MCTS-wide) action stats (e.g., for Progressive History) */
+    protected final Map<MoveKey, ActionStatistics> globalActionStats;
+    
+    //-------------------------------------------------------------------------
 	
 	/** 
 	 * Creates standard UCT algorithm, with exploration constant = sqrt(2.0)
@@ -226,22 +236,22 @@ public class MCTS extends ExpertPolicy
 	 * Creates a Biased MCTS agent using given collection of features
 	 * 
 	 * @param features
-	 * @param biasPlayouts
+	 * @param epsilon Epsilon for epsilon-greedy feature-based playouts. 0 for uniform, 1 for always softmax
 	 * @return Biased MCTS agent
 	 */
-	public static MCTS createBiasedMCTS(final Features features, final boolean biasPlayouts)
+	public static MCTS createBiasedMCTS(final Features features, final double epsilon)
 	{
-		final SoftmaxPolicy softmax = new SoftmaxPolicy(features);
+		final SoftmaxPolicy softmax = new SoftmaxPolicy(features, epsilon);
 		final MCTS mcts = 
 				new MCTS
 				(
 					new AG0Selection(), 
-					biasPlayouts ? softmax : new RandomPlayout(200),
+					epsilon < 1.0 ? softmax : new RandomPlayout(200),
 					new RobustChild()
 				);
 		
 		mcts.setLearnedSelectionPolicy(softmax);
-		mcts.friendlyName = biasPlayouts ? "Biased MCTS" : "Biased MCTS (Uniform Playouts)";
+		mcts.friendlyName = epsilon < 1.0 ? "Biased MCTS" : "Biased MCTS (Uniform Playouts)";
 		
 		return mcts;
 	}
@@ -288,10 +298,15 @@ public class MCTS extends ExpertPolicy
 		this.selectionStrategy = selectionStrategy;
 		this.playoutStrategy = playoutStrategy;
 		
-		backpropFlags = selectionStrategy.backpropFlags();
+		backpropFlags = selectionStrategy.backpropFlags() | playoutStrategy.backpropFlags();
 		
 		this.backpropagation = new Backpropagation(backpropFlags);
 		this.finalMoveSelectionStrategy = finalMoveSelectionStrategy;
+		
+		if ((backpropFlags & Backpropagation.GLOBAL_ACTION_STATS) != 0)
+			globalActionStats = new HashMap<MoveKey, ActionStatistics>();
+		else
+			globalActionStats = null;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -360,9 +375,19 @@ public class MCTS extends ExpertPolicy
 			// We're reusing a part of previous search tree
 			// Clean up unused parts of search tree from memory
 			rootNode.setParent(null);
-						
+					
 			// TODO in nondeterministic games + OpenLoop MCTS, we'll want to 
 			// decay statistics gathered in the entire subtree here
+		}
+		
+		if (globalActionStats != null)
+		{
+			// Decay global action statistics
+			for (final ActionStatistics stats : globalActionStats.values())
+			{
+				stats.accumulatedScore *= globalActionDecayFactor;
+				stats.visitCount *= globalActionDecayFactor;
+			}
 		}
 		
 		rootNode.rootInit(context);
@@ -389,7 +414,7 @@ public class MCTS extends ExpertPolicy
 			
 			while (current.contextRef().trial().status() == null)
 			{
-				final int selectedIdx = selectionStrategy.select(current);
+				final int selectedIdx = selectionStrategy.select(this, current);
 				BaseNode nextNode = current.childForNthLegalMove(selectedIdx);
 				
 				final Context newContext = current.traverse(selectedIdx);
@@ -432,7 +457,7 @@ public class MCTS extends ExpertPolicy
 				
 				final int numActionsBeforePlayout = current.contextRef().trial().numMoves();
 				
-				endTrial = playoutStrategy.runPlayout(playoutContext);
+				endTrial = playoutStrategy.runPlayout(this, playoutContext);
 				numPlayoutActions = (endTrial.numMoves() - numActionsBeforePlayout);
 				
 				lastNumPlayoutActions += 
@@ -442,7 +467,7 @@ public class MCTS extends ExpertPolicy
 			/***************************
 				Backpropagation Phase
 			 ***************************/
-			backpropagation.update(current, playoutContext, AIUtils.agentUtilities(playoutContext), numPlayoutActions);
+			backpropagation.update(this, current, playoutContext, AIUtils.agentUtilities(playoutContext), numPlayoutActions);
 			
 			++numIterations;
 		}
@@ -651,24 +676,24 @@ public class MCTS extends ExpertPolicy
 	@Override
 	public void initAI(final Game game, final int playerID)
 	{
-		// store state flags
+		// Store state flags
 		currentGameFlags = game.gameFlags();
 		
-		// reset counters
+		// Reset counters
 		lastNumMctsIterations = -1;
 		lastNumPlayoutActions = -1;
 		
-		// reset tree reuse stuff
+		// Reset tree reuse stuff
 		rootNode = null;
 		lastActionHistorySize = 0;
 		
-		// instantiate feature sets for selection policy
+		// Instantiate feature sets for selection policy
 		if (learnedSelectionPolicy != null)
 		{
 			learnedSelectionPolicy.initAI(game, playerID);
 		}
 		
-		// may also have to instantiate feature sets for Playout policy if it doubles as an AI
+		// May also have to instantiate feature sets for Playout policy if it doubles as an AI
 		if (playoutStrategy instanceof AI)
 		{
 			if (playoutStrategy != learnedSelectionPolicy)
@@ -678,9 +703,13 @@ public class MCTS extends ExpertPolicy
 			}
 		}
 		
-		// reset visualisation stuff
+		// Reset visualisation stuff
 		lastReturnedMoveValueEst = 0.0;
 		analysisReport = null;
+		
+		// Completely clear any global action statistics
+		if (globalActionStats != null)	
+			globalActionStats.clear();
 	}
 	
 	@Override
@@ -757,6 +786,26 @@ public class MCTS extends ExpertPolicy
 	}
 	
 	//-------------------------------------------------------------------------
+	
+	/**
+     * @param moveKey
+     * @return global MCTS-wide action statistics for given move key
+     */
+    public ActionStatistics getOrCreateActionStatsEntry(final MoveKey moveKey)
+    {
+    	ActionStatistics stats = globalActionStats.get(moveKey);
+    	
+    	if (stats == null)
+    	{
+    		stats = new ActionStatistics();
+    		globalActionStats.put(moveKey, stats);
+    		//System.out.println("creating entry for " + moveKey + " in " + this);
+    	}
+    	
+    	return stats;
+    }
+    
+    //-------------------------------------------------------------------------
 	
 	/**
 	 * @param json
@@ -838,11 +887,18 @@ public class MCTS extends ExpertPolicy
 					selection = new UCB1();
 					selection.customise(lineParts);
 				}
-				else if (lineParts[0].toLowerCase().endsWith("ag0selection") || 
-						lineParts[0].toLowerCase().endsWith("alphago0selection")
-						)
+				else if 
+				(
+					lineParts[0].toLowerCase().endsWith("ag0selection") || 
+					lineParts[0].toLowerCase().endsWith("alphago0selection")
+				)
 				{
 					selection = new AG0Selection();
+					selection.customise(lineParts);
+				}
+				else if (lineParts[0].toLowerCase().endsWith("regpolopt"))
+				{
+					selection = new SearchRegPolOpt();
 					selection.customise(lineParts);
 				}
 				else
@@ -933,5 +989,134 @@ public class MCTS extends ExpertPolicy
 	}
 	
 	//-------------------------------------------------------------------------
+	
+	/**
+     * Wrapper class for global (MCTS-wide) action statistics
+     * (accumulated scores + visit count)
+     * 
+     * @author Dennis Soemers
+     */
+    public static class ActionStatistics
+    {
+    	/** Visit count (not int because we want to be able to decay) */
+    	public double visitCount = 0.0;
+    	
+    	/** Accumulated score */
+    	public double accumulatedScore = 0.0;
+    	
+    	@Override
+    	public String toString()
+    	{
+    		return "[visits = " + visitCount + ", accum. score = " + accumulatedScore + "]";
+    	}
+    }
+    
+    /**
+     * Object to be used as key for a move in hash tables.
+     * 
+     * @author Dennis Soemers
+     */
+    public static class MoveKey
+    {
+    	/** The full move object */
+    	public final Move move;
+    	
+    	/** Cached hashCode */
+    	private final int cachedHashCode;
+    	
+    	/**
+    	 * Constructor
+    	 * @param move
+    	 * @param depth Depth at which the move was played. Can be 0 if not known.
+    	 * Only used to distinguish pass/swap moves at different levels of search tree.
+    	 */
+    	public MoveKey(final Move move, final int depth)
+    	{
+    		this.move = move;
+    		final int prime = 31;
+			int result = 1;
+			
+			if (move.isPass())
+			{
+				result = prime * result + depth + 1297;
+			}
+			else if (move.isSwap())
+			{
+				result = prime * result + depth + 587;
+			}
+			else
+			{
+				if (!move.isOrientedMove())
+				{
+					result = prime * result + (move.toNonDecision() + move.fromNonDecision());
+				}
+				else
+				{
+					result = prime * result + move.toNonDecision();
+					result = prime * result + move.fromNonDecision();
+				}
+				
+				result = prime * result + move.stateNonDecision();
+			}
+				
+			result = prime * result + move.mover();
+			
+			cachedHashCode = result;
+    	}
+
+		@Override
+		public int hashCode()
+		{
+			return cachedHashCode;
+		}
+
+		@Override
+		public boolean equals(final Object obj)
+		{
+			if (this == obj)
+				return true;
+
+			if (!(obj instanceof MoveKey))
+				return false;
+			
+			final MoveKey other = (MoveKey) obj;
+			if (move == null)
+				return (other.move == null);
+			
+			if (move.isOrientedMove() != other.move.isOrientedMove())
+				return false;
+			
+			if (move.isOrientedMove()) 
+			{
+				if (move.toNonDecision() != other.move.toNonDecision() || move.fromNonDecision() != other.move.fromNonDecision())
+					return false;
+			}
+			else
+			{
+				boolean fine = false;
+				
+				if 
+				(
+					(move.toNonDecision() == other.move.toNonDecision() && move.fromNonDecision() == other.move.fromNonDecision())
+					||
+					(move.toNonDecision() == other.move.fromNonDecision() && move.fromNonDecision() == other.move.toNonDecision())
+				)
+				{
+					fine = true;
+				}
+				
+				if (!fine)
+					return false;
+			}
+			
+			return (move.mover() == other.move.mover() && move.stateNonDecision() == other.move.stateNonDecision());
+		}
+		
+		@Override
+		public String toString()
+		{
+			return "[Move = " + move + ", Hash = " + cachedHashCode + "]";
+		}
+    }
 
 }

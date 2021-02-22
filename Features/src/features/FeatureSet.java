@@ -311,7 +311,7 @@ public class FeatureSet extends FeatureSetInterface
 				(
 					(int) Math.ceil(proactiveInstancesWIP.size() / 0.75f), 0.75f
 				);
-				
+							
 		for 
 		(
 			final Entry<ProactiveFeaturesKey, List<FeatureInstanceNode>> entry : 
@@ -595,8 +595,7 @@ public class FeatureSet extends FeatureSetInterface
 			
 			for (int j = 0; j < nodesArray.length; ++j)
 			{
-				final FeatureInstance instance = 
-						nodesArray[j].featureInstance;
+				final FeatureInstance instance = nodesArray[j].featureInstance;
 								
 				if (instance.matches(state))
 				{
@@ -608,6 +607,17 @@ public class FeatureSet extends FeatureSetInterface
 				}
 			}
 		}
+		
+//		if (activeInstances.size() == 0)
+//		{
+//			System.out.println("lastFrom = " + lastFrom);
+//			System.out.println("lastTo = " + lastTo);
+//			System.out.println("from = " + from);
+//			System.out.println("to = " + to);
+//			System.out.println("player = " + player);
+//			System.out.println("instanceNodesToCheck.size() = " + instanceNodesToCheck.size());
+//			System.out.println("returning num active instances = " + activeInstances.size());
+//		}
 		
 		return activeInstances;
 	}
@@ -686,7 +696,7 @@ public class FeatureSet extends FeatureSetInterface
 					logit += weightVector.get(activeFeature);
 				}
 				
-				if (logit >= autoPlayThreshold)
+				if (autoPlayThreshold >= 0.f && logit >= autoPlayThreshold)
 					return logit;
 			}
 			else
@@ -717,7 +727,7 @@ public class FeatureSet extends FeatureSetInterface
 								featuresActive[featureIndices[idx]] = true;
 							}
 							
-							if (logit >= autoPlayThreshold)
+							if (autoPlayThreshold >= 0.f && logit >= autoPlayThreshold)
 								return logit;
 	
 							// will also have to test all the children of our 
@@ -2105,11 +2115,10 @@ public class FeatureSet extends FeatureSetInterface
 		//--------------------------------------------------------------------
 		
 		/**
-		 * Prints the entire subtree rooted at this node. Useful
-		 * for debugging.
+		 * Prints the entire subtree rooted at this node. Useful for debugging.
 		 * @param depthLevel
 		 */
-		@SuppressWarnings("unused")
+		@SuppressWarnings("unused")		// Please do NOT remove; frequently used for debugging!
 		public void print(final int depthLevel)
 		{
 			for (int i = 0; i < depthLevel; ++i)

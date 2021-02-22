@@ -1,9 +1,15 @@
 package search.mcts.selection;
 
 import main.collections.FVector;
+import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 import search.mcts.utils.RegPolOptMCTS;
 
+/**
+ * Selection strategy from the "MCTS as Regularized Policy Optimization" paper
+ *
+ * @author Dennis Soemers
+ */
 public class SearchRegPolOpt implements SelectionStrategy
 {
 	
@@ -34,7 +40,7 @@ public class SearchRegPolOpt implements SelectionStrategy
 	//-------------------------------------------------------------------------
 
 	@Override
-	public int select(final BaseNode current)
+	public int select(final MCTS mcts, final BaseNode current)
 	{
 		final FVector distribution = RegPolOptMCTS.computePiBar(current, explorationConstant);
 		return distribution.sampleProportionally();
@@ -47,7 +53,7 @@ public class SearchRegPolOpt implements SelectionStrategy
 	}
 
 	@Override
-	public void customise(String[] inputs)
+	public void customise(final String[] inputs)
 	{
 		// Nothing to do
 	}

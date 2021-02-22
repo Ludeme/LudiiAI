@@ -80,7 +80,7 @@ public final class LudiiGameWrapper
 			if (!(obj instanceof GameWrapperCacheKey))
 				return false;
 			
-			GameWrapperCacheKey other = (GameWrapperCacheKey) obj;
+			final GameWrapperCacheKey other = (GameWrapperCacheKey) obj;
 			return (gameName.equals(other.gameName) && options.equals(other.options));
 		}
 	}
@@ -650,7 +650,7 @@ public final class LudiiGameWrapper
 		final boolean usesCount = game.requiresCount();
 		final boolean usesAmount = game.requiresBet();
 		final boolean usesState = game.requiresLocalState();
-		final boolean usesSwap = game.usesSwapRule();
+		final boolean usesSwap = game.metaRules().usesSwapRule();
 		
 		final List<String> channelNames = new ArrayList<String>();
 		

@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import game.Game;
 import policies.GreedyPolicy;
 import policies.softmax.SoftmaxPolicy;
+import search.mcts.MCTS;
 import util.Context;
 import util.Trial;
 
@@ -23,10 +24,11 @@ public interface PlayoutStrategy
 	/**
 	 * Runs full play-out
 	 * 
+	 * @param mcts
 	 * @param context
 	 * @return Trial object at end of playout.
 	 */
-	public Trial runPlayout(final Context context);
+	public Trial runPlayout(final MCTS mcts, final Context context);
 	
 	/**
 	 * Allows a Playout strategy to tell Ludii whether or not it can support playing
@@ -36,6 +38,11 @@ public interface PlayoutStrategy
 	 * @return False if the playout strategy cannot be used in a given game
 	 */
 	public boolean playoutSupportsGame(final Game game);
+	
+	/**
+	 * @return Flags indicating stats that should be backpropagated
+	 */
+	public int backpropFlags();
 	
 	//-------------------------------------------------------------------------
 	

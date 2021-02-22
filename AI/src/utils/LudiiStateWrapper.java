@@ -324,7 +324,7 @@ public final class LudiiStateWrapper
 		for (int i = 0; i < numRollouts; ++i)
 		{
 			final TempContext copyContext = new TempContext(context);
-			game.game.playout(copyContext, null, 0.1f, null, null, 0, playoutCap, -1.f, ThreadLocalRandom.current());
+			game.game.playout(copyContext, null, 0.1f, null, 0, playoutCap, ThreadLocalRandom.current());
 			final double[] returns = AIUtils.agentUtilities(copyContext);
 			sumRewards += returns[player + 1];
 		}
@@ -398,7 +398,7 @@ public final class LudiiStateWrapper
 		final boolean usesCount = game.game.requiresCount();
 		final boolean usesAmount = game.game.requiresBet();
 		final boolean usesState = game.game.requiresLocalState();
-		final boolean usesSwap = game.game.usesSwapRule();
+		final boolean usesSwap = game.game.metaRules().usesSwapRule();
 		
 		final int[] xCoords = game.tensorCoordsX();
 		final int[] yCoords = game.tensorCoordsY();

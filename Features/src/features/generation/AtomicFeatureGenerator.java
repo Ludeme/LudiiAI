@@ -19,6 +19,7 @@ import features.features.RelativeFeature;
 import features.patterns.Pattern;
 import game.Game;
 import game.equipment.component.Component;
+import game.types.state.GameType;
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;
 
@@ -68,7 +69,7 @@ public class AtomicFeatureGenerator
 		{
 
 			@Override
-			public int compare(Feature o1, Feature o2) 
+			public int compare(final Feature o1, final Feature o2) 
 			{
 				final List<FeatureElement> els1 = o1.pattern().featureElements();
 				final List<FeatureElement> els2 = o2.pattern().featureElements();
@@ -141,7 +142,10 @@ public class AtomicFeatureGenerator
 		
 		final List<Feature> emptyFeatures = new ArrayList<Feature>();
 		emptyFeatures.add(new RelativeFeature(new Pattern(), new Walk(), null));
-		emptyFeatures.add(new RelativeFeature(new Pattern(), null, new Walk()));
+		
+		if ((game.gameFlags() & GameType.UsesFromPositions) != 0L)
+			emptyFeatures.add(new RelativeFeature(new Pattern(), null, new Walk()));
+		
 		final Set<Feature> generatedFeatures = new HashSet<Feature>(16384);
 		generatedFeatures.addAll(emptyFeatures);
 		

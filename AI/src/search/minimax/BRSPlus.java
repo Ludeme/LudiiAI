@@ -3,7 +3,6 @@ package search.minimax;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -29,16 +28,16 @@ import utils.data_structures.transposition_table.TranspositionTable;
 import utils.data_structures.transposition_table.TranspositionTable.ABTTData;
 
 /**
- * Implementation of alpha-beta search. Assumes perfect-information games. 
+ * Implementation of BRS+ (Esser et al., 2013). Assumes perfect-information games. 
  * Uses iterative deepening when time-restricted, goes straight for
  * depth limit when only depth-limited. Extracts heuristics to use from game's metadata.
  * 
- * For games with > 2 players, we use Paranoid search (i.e. all other players
- * just try to minimise the score for the maximising player).
+ * Cannot play games with fewer than 3 players (since then it would just revert to the
+ * normal AlphaBetaSearch that we already have).
  * 
  * @author Dennis Soemers
  */
-public class AlphaBetaSearch extends ExpertPolicy
+public class BRSPlus extends ExpertPolicy
 {
 	
 	//-------------------------------------------------------------------------
@@ -91,9 +90,6 @@ public class AlphaBetaSearch extends ExpertPolicy
 	/** The number of players in the game we're currently playing */
 	protected int numPlayersInGame = 0;
 	
-	/** Remember if we proved a win in one of our searches */
-	protected boolean provedWin = false;
-	
 	/** Needed for visualisations */
 	protected float rootAlphaInit = ALPHA_INIT;
 	
@@ -112,23 +108,14 @@ public class AlphaBetaSearch extends ExpertPolicy
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * Creates a standard alpha-beta searcher.
-	 * @return Alpha-beta search algorithm.
-	 */
-	public static AlphaBetaSearch createAlphaBeta()
-	{
-		return new AlphaBetaSearch();
-	}
-	
-	//-------------------------------------------------------------------------
-	
-	/**
 	 * Constructor
 	 */
-	public AlphaBetaSearch()
+	public BRSPlus()
 	{
-		friendlyName = "Alpha-Beta";
+		friendlyName = "BRS+";
 		heuristicsFromMetadata = true;
+		
+		transpositionTable = new TranspositionTable(12);
 	}
 	
 	/**
@@ -137,9 +124,9 @@ public class AlphaBetaSearch extends ExpertPolicy
 	 * @throws IOException 
 	 * @throws FileNotFoundException 
 	 */
-	public AlphaBetaSearch(final String heuristicsFilepath) throws FileNotFoundException, IOException
+	public BRSPlus(final String heuristicsFilepath) throws FileNotFoundException, IOException
 	{
-		friendlyName = "Alpha-Beta";
+		friendlyName = "BRS+";
 		final String heuristicsStr = FileHandling.loadTextContentsFromFile(heuristicsFilepath);
 		this.heuristicValueFunction = (Heuristics)language.compiler.Compiler.compileObject
 										(
@@ -148,6 +135,8 @@ public class AlphaBetaSearch extends ExpertPolicy
 											new Report()
 										);
 		heuristicsFromMetadata = false;
+		
+		transpositionTable = new TranspositionTable(12);
 	}
 	
 	//-------------------------------------------------------------------------
@@ -162,7 +151,6 @@ public class AlphaBetaSearch extends ExpertPolicy
 		final int maxDepth
 	)
 	{
-		provedWin = false;
 		final int depthLimit = maxDepth > 0 ? maxDepth : Integer.MAX_VALUE;
 		lastSearchedRootContext = context;
 		
@@ -171,33 +159,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 		
 		if (maxSeconds > 0)
 		{
-			final long startTime = System.currentTimeMillis();
-			final long stopTime = startTime + (long) (maxSeconds * 1000);
-			
-			// first do normal iterative deepening alphabeta (paranoid if > 2 players)
 			lastReturnedMove = iterativeDeepening(game, context, maxSeconds, depthLimit, 1);
-			
-			final long currentTime = System.currentTimeMillis();
-			
-			if (game.players().count() > 2 && currentTime < stopTime)
-			{
-				// We still have time left in game with > 2 players;
-				// this probably means that paranoid search proved a win or a loss
-				
-				// If a win for us was proven even under paranoid assumption, just play it!
-				if (provedWin)
-				{
-					if (transpositionTable != null)
-						transpositionTable.deallocate();
-					return lastReturnedMove;
-				}
-				
-				// Otherwise, we assume a loss was proven under paranoid assumption.
-				// This can lead to poor play in end-games (or extremely simple games) due
-				// to unrealistic paranoid assumption, so now we switch to Max^N and run again
-				lastReturnedMove = iterativeDeepeningMaxN(game, context, (stopTime - currentTime) / 1000.0, depthLimit, 1);
-			}
-			
 			if (transpositionTable != null)
 				transpositionTable.deallocate();
 			return lastReturnedMove;
@@ -268,17 +230,9 @@ public class AlphaBetaSearch extends ExpertPolicy
 		// (ignoring incomplete early-terminated search)
 		Move bestMoveCompleteSearch = sortedRootMoves.get(0);
 		
-		if (numPlayers > 2)
-		{
-			// For paranoid search, we can narrow alpha-beta window if some players already won/lost
-			rootAlphaInit = ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT;
-			rootBetaInit = ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT;
-		}
-		else
-		{
-			rootAlphaInit = ALPHA_INIT;
-			rootBetaInit = BETA_INIT;
-		}
+		// For paranoid search, we can narrow alpha-beta window if some players already won/lost
+		rootAlphaInit = ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT;
+		rootBetaInit = ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT;
 		
 		while (searchDepth < maxDepth)
 		{
@@ -299,7 +253,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 				final Context copyContext = new Context(context);
 				final Move m = sortedRootMoves.get(i);
 				game.apply(copyContext, m);
-				final float value = alphaBeta(copyContext, searchDepth - 1, alpha, beta, maximisingPlayer, stopTime);
+				final float value = alphaBeta(copyContext, searchDepth - 1, alpha, beta, maximisingPlayer, stopTime, 1);
 				
 				if (System.currentTimeMillis() >= stopTime || wantsInterrupt)	// time to abort search
 				{
@@ -339,8 +293,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 				{
 					// we've just proven a win, so we can return best move
 					// found during this search
-					analysisReport = friendlyName + " (player " + maximisingPlayer + ") found a proven win at depth " + searchDepth + ".";
-					provedWin = true;
+					analysisReport = friendlyName + " found a proven win at depth " + searchDepth + ".";
 					return bestMove;
 				}
 				else if (score == rootAlphaInit)
@@ -348,14 +301,14 @@ public class AlphaBetaSearch extends ExpertPolicy
 					// we've just proven a loss, so we return the best move
 					// of the PREVIOUS search (delays loss for the longest
 					// amount of time)
-					analysisReport = friendlyName + " (player " + maximisingPlayer + ") found a proven loss at depth " + searchDepth + ".";
+					analysisReport = friendlyName + " found a proven loss at depth " + searchDepth + ".";
 					return bestMoveCompleteSearch;
 				}
 				else if (searchedFullTree)
 				{
 					// We've searched full tree but did not prove a win or loss
 					// probably means a draw, play best line we have
-					analysisReport = friendlyName + " (player " + maximisingPlayer + ") completed search of depth " + searchDepth + " (no proven win or loss).";
+					analysisReport = friendlyName + " completed search of depth " + searchDepth + " (no proven win or loss).";
 					return bestMove;
 				}
 					
@@ -370,7 +323,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			if (System.currentTimeMillis() >= stopTime || wantsInterrupt)
 			{
 				// we need to return
-				analysisReport = friendlyName + " (player " + maximisingPlayer + ") completed search of depth " + searchDepth + ".";
+				analysisReport = friendlyName + " completed search of depth " + searchDepth + ".";
 				return bestMoveCompleteSearch;
 			}
 			
@@ -392,7 +345,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			moveScores.fill(0, numRootMoves, 0.f);
 		}
 		
-		analysisReport = friendlyName + " (player " + maximisingPlayer + ") completed search of depth " + searchDepth + ".";
+		analysisReport = friendlyName + " completed search of depth " + searchDepth + ".";
 		return bestMoveCompleteSearch;
 	}
 	
@@ -405,6 +358,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 	 * @param inBeta
 	 * @param maximisingPlayer Who is the maximising player?
 	 * @param stopTime
+	 * @param regMoveCounter Tracks the number of regular moves between successive turns of root player (for BRS+)
 	 * @return (heuristic) evaluation of the reached state, from perspective of maximising player.
 	 */
 	public float alphaBeta
@@ -414,7 +368,8 @@ public class AlphaBetaSearch extends ExpertPolicy
 		final float inAlpha,
 		final float inBeta,
 		final int maximisingPlayer,
-		final long stopTime
+		final long stopTime,
+		final int regMoveCounter
 	)
 	{
 		final Trial trial = context.trial();
@@ -502,8 +457,8 @@ public class AlphaBetaSearch extends ExpertPolicy
 			// Put best move according to Transposition Table first
 			final Move transpositionBestMove = tableData.bestMove;
 			legalMoves = new FastArrayList<Move>(legalMoves);	// Copy to avoid modifying original
-
-			for (int i = 0; i < numLegalMoves; ++i)
+			
+			for (int i = 0; i < legalMoves.size(); ++i)
 			{
 				if (transpositionBestMove.equals(legalMoves.get(i)))
 				{
@@ -517,12 +472,9 @@ public class AlphaBetaSearch extends ExpertPolicy
 		
 		final int numPlayers = game.players().count();
 		
-		if (numPlayers > 2)
-		{
-			// For paranoid search, we can maybe narrow alpha-beta window if some players already won/lost
-			alpha = Math.max(alpha, ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT);
-			beta = Math.min(beta, ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT);
-		}
+		// For paranoid search, we can maybe narrow alpha-beta window if some players already won/lost
+		alpha = Math.max(alpha, ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT);
+		beta = Math.min(beta, ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT);
 		
 		Move bestMove = legalMoves.get(0);
 		
@@ -535,7 +487,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 				final Context copyContext = new Context(context);
 				final Move m = legalMoves.get(i);
 				game.apply(copyContext, m);
-				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime);
+				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime, 1);
 				
 				if (System.currentTimeMillis() >= stopTime || wantsInterrupt)	// time to abort search
 				{
@@ -572,13 +524,64 @@ public class AlphaBetaSearch extends ExpertPolicy
 		{
 			float score = BETA_INIT;
 			
-			for (int i = 0; i < numLegalMoves; ++i)
+			boolean allowRegularMoves = true;
+			boolean allowSpecialMove = false;
+			if (regMoveCounter == 2)
+			{
+				allowRegularMoves = false;
+				allowSpecialMove = true;
+			}
+			else if (state.playerToAgent(state.next()) != maximisingPlayer)
+			{
+				allowSpecialMove = true;
+			}
+			
+			boolean cutOff = false;
+			
+			if (allowRegularMoves)
+			{
+				for (int i = 0; i < numLegalMoves; ++i)
+				{
+					final Context copyContext = new Context(context);
+					final Move m = legalMoves.get(i);
+					game.apply(copyContext, m);
+					final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime, regMoveCounter + 1);
+					
+					if (System.currentTimeMillis() >= stopTime || wantsInterrupt)	// time to abort search
+					{
+						return 0;
+					}
+					
+					if (value < score)
+					{
+						bestMove = m;
+						score = value;
+					}
+					
+					if (score < beta)
+						beta = score;
+					
+					if (alpha >= beta)	// alpha cut-off
+					{
+						cutOff = true;
+						break;
+					}
+				}
+			}
+			
+			if (allowSpecialMove & !cutOff)
 			{
 				final Context copyContext = new Context(context);
-				final Move m = legalMoves.get(i);
-				game.apply(copyContext, m);
-				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime);
 				
+				final Move m;
+				if (tableData != null)		// We have move ordering from TT
+					m = legalMoves.get(0);
+				else						// No move ordering, just randomly pick a move
+					m = legalMoves.get(ThreadLocalRandom.current().nextInt(legalMoves.size()));
+				
+				game.apply(copyContext, m);
+				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime, regMoveCounter + 1);
+
 				if (System.currentTimeMillis() >= stopTime || wantsInterrupt)	// time to abort search
 				{
 					return 0;
@@ -589,12 +592,6 @@ public class AlphaBetaSearch extends ExpertPolicy
 					bestMove = m;
 					score = value;
 				}
-				
-				if (score < beta)
-					beta = score;
-				
-				if (alpha >= beta)	// alpha cut-off
-					break;
 			}
 			
 			if (transpositionTable != null)
@@ -610,300 +607,6 @@ public class AlphaBetaSearch extends ExpertPolicy
 			
 			return score;
 		}
-	}
-	
-	//-------------------------------------------------------------------------
-	
-	/**
-	 * Runs iterative deepening Max^N
-	 * @param game
-	 * @param context
-	 * @param maxSeconds
-	 * @param maxDepth
-	 * @param startDepth
-	 * @return Move to play
-	 */
-	public Move iterativeDeepeningMaxN
-	(
-		final Game game, 
-		final Context context, 
-		final double maxSeconds, 
-		final int maxDepth,
-		final int startDepth
-	)
-	{
-		final long startTime = System.currentTimeMillis();
-		long stopTime = (maxSeconds > 0.0) ? startTime + (long) (maxSeconds * 1000) : Long.MAX_VALUE;
-		
-		// No need to initialise list of root moves, we re-use the ones from previous paranoid search
-		final int numRootMoves = sortedRootMoves.size();
-		final List<ScoredMove> scoredMoves = new ArrayList<ScoredMove>(sortedRootMoves.size());
-		
-		if (numRootMoves == 1)
-		{
-			// play faster if we only have one move available anyway
-			if (autoPlaySeconds >= 0.0 && autoPlaySeconds < maxSeconds)
-				stopTime = startTime + (long) (autoPlaySeconds * 1000);
-		}
-		
-		// Vector for visualisation purposes
-		rootValueEstimates = new FVector(currentRootMoves.size());
-		
-		// storing scores found for purpose of move ordering
-		final FVector moveScores = new FVector(numRootMoves);
-		int searchDepth = startDepth - 1;
-		final int maximisingPlayer = context.state().mover();
-		final int numPlayers = game.players().count();
-		
-		// best move found so far during a fully-completed search 
-		// (ignoring incomplete early-terminated search)
-		Move bestMoveCompleteSearch = sortedRootMoves.get(0);
-		
-		// We can maybe narrow alpha-beta window if some players already won/lost
-		rootAlphaInit = ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT;
-		rootBetaInit = ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT;
-		
-		while (searchDepth < maxDepth)
-		{
-			++searchDepth;
-			searchedFullTree = true;
-			
-			float score = ALPHA_INIT;
-			
-			// best move during this particular search
-			Move bestMove = sortedRootMoves.get(0);
-			
-			for (int i = 0; i < numRootMoves; ++i)
-			{
-				final Context copyContext = new Context(context);
-				final Move m = sortedRootMoves.get(i);
-				game.apply(copyContext, m);
-				final float[] values = maxN(copyContext, searchDepth - 1, maximisingPlayer, rootAlphaInit, rootBetaInit, numPlayers, stopTime);
-				
-				if (System.currentTimeMillis() >= stopTime || wantsInterrupt)	// time to abort search
-				{
-					bestMove = null;
-					break;
-				}
-				
-				final int origMoveIdx = currentRootMoves.indexOf(m);
-				if (origMoveIdx >= 0)
-				{
-					rootValueEstimates.set(origMoveIdx, (float) scoreToValueEst(values[maximisingPlayer], rootAlphaInit, rootBetaInit));
-				}
-				
-				moveScores.set(i, values[maximisingPlayer]);
-				
-				if (values[maximisingPlayer] > score)		// new best move found
-				{
-					//System.out.println("New best move: " + m + " with eval = " + value);
-					score = values[maximisingPlayer];
-					bestMove = m;
-				}
-				
-				if (score >= rootBetaInit)		// a winning move, only type of pruning we can do in Max^n
-					break;
-			}
-			
-			// this is iterative deepening stuff again
-			
-			if (bestMove != null)		// search was not interrupted
-			{
-				estimatedRootScore = score;
-				
-				if (score == rootBetaInit)
-				{
-					// we've just proven a win, so we can return best move
-					// found during this search
-					analysisReport += " (subsequent Max^n found proven win at depth " + searchDepth + ")";
-					provedWin = true;
-					return bestMove;
-				}
-				else if (score == rootAlphaInit)
-				{
-					// we've just proven a loss, so we return the best move
-					// of the PREVIOUS search (delays loss for the longest
-					// amount of time)
-					analysisReport += " (subsequent Max^n found proven loss at depth " + searchDepth + ")";
-					return bestMoveCompleteSearch;
-				}
-				else if (searchedFullTree)
-				{
-					// We've searched full tree but did not prove a win or loss
-					// probably means a draw, play best line we have
-					analysisReport += " (subsequent Max^n completed search of depth " + searchDepth + " (no proven win or loss))";
-					return bestMove;
-				}
-					
-				bestMoveCompleteSearch = bestMove;
-			}
-			else
-			{
-				// decrement because we didn't manage to complete this search
-				--searchDepth;
-			}
-			
-			if (System.currentTimeMillis() >= stopTime || wantsInterrupt)
-			{
-				// we need to return
-				analysisReport += " (subsequent Max^n completed search of depth " + searchDepth + ")";
-				return bestMoveCompleteSearch;
-			}
-			
-			// order moves based on scores found, for next search
-			scoredMoves.clear();
-			for (int i = 0; i < numRootMoves; ++i)
-			{
-				scoredMoves.add(new ScoredMove(sortedRootMoves.get(i), moveScores.get(i)));
-			}
-			Collections.sort(scoredMoves);
-			
-			sortedRootMoves.clear();
-			for (int i = 0; i < numRootMoves; ++i)
-			{
-				sortedRootMoves.add(scoredMoves.get(i).move);
-			}
-			
-			// clear the vector of scores
-			moveScores.fill(0, numRootMoves, 0.f);
-		}
-		
-		analysisReport += " (subsequent Max^n completed search of depth " + searchDepth + ")";
-		return bestMoveCompleteSearch;
-	}
-	
-	/**
-	 * Recursive Max^n search function.
-	 * 
-	 * @param context
-	 * @param depth
-	 * @param maximisingPlayer
-	 * @param inAlpha
-	 * @param inBeta
-	 * @param numPlayers How many players in this game?
-	 * @param stopTime
-	 * @return (heuristic) evaluations of the reached state, from perspectives of all players.
-	 */
-	public float[] maxN
-	(
-		final Context context, 
-		final int depth,
-		final int maximisingPlayer,
-		final float inAlpha,
-		final float inBeta,
-		final int numPlayers,
-		final long stopTime
-	)
-	{
-		final Trial trial = context.trial();
-		final State state = context.state();
-				
-		if (trial.over())
-		{
-			// terminal node
-			final double[] utils = AIUtils.utilities(context);
-			final float[] toReturn = new float[utils.length];
-			
-			for (int p = 1; p < utils.length; ++p)
-			{
-				toReturn[p] = (float) utils[p] * BETA_INIT;
-				
-				if (toReturn[p] != inAlpha && toReturn[p] != inBeta)
-				{
-					minHeuristicEval = Math.min(minHeuristicEval, toReturn[p]);
-					maxHeuristicEval = Math.max(maxHeuristicEval, toReturn[p]);
-				}
-			}
-			
-			return toReturn;
-		}
-		else if (depth == 0)
-		{
-			searchedFullTree = false;
-			
-			// heuristic evaluations
-			final float[] playerScores = new float[numPlayers + 1];
-			final double[] utils = (context.numActive() == numPlayers) ? null : AIUtils.utilities(context);
-			
-			for (int p = 1; p <= numPlayers; ++p)
-			{
-				if (context.active(p))
-				{
-					playerScores[p] = heuristicValueFunction.computeValue(context, p, ABS_HEURISTIC_WEIGHT_THRESHOLD);
-				}
-				else
-				{
-					playerScores[p] = (float) utils[p] * BETA_INIT;
-				}
-			}
-			
-			final float oppScoreMultiplier = 1.f / numPlayers;	// this gives us nicer heuristics around 0
-			final float[] toReturn = new float[numPlayers + 1];
-			
-			for (int p = 1; p <= numPlayers; ++p)
-			{
-				for (int other = 1; other <= numPlayers; ++other)
-				{
-					if (other == p)
-						toReturn[p] += playerScores[other];
-					else
-						toReturn[p] -= oppScoreMultiplier * playerScores[other];
-				}
-				
-				minHeuristicEval = Math.min(minHeuristicEval, toReturn[p]);
-				maxHeuristicEval = Math.max(maxHeuristicEval, toReturn[p]);
-			}
-
-			return toReturn;
-		}
-		
-		final Game game = context.game();
-		final int mover = state.mover();
-		
-		final FastArrayList<Move> legalMoves = game.moves(context).moves();
-		
-		// We can maybe narrow alpha and beta if some players already won/lost
-		final float alpha = Math.max(inAlpha, ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT);
-		final float beta = Math.min(inBeta, ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT);
-		
-		final int numLegalMoves = legalMoves.size();
-		
-		float[] returnScores = new float[numPlayers + 1];
-		Arrays.fill(returnScores, ALPHA_INIT);
-		float score = ALPHA_INIT;
-		float maximisingPlayerTieBreaker = BETA_INIT;
-		for (int i = 0; i < numLegalMoves; ++i)
-		{
-			final Context copyContext = new Context(context);
-			final Move m = legalMoves.get(i);
-			game.apply(copyContext, m);
-			final float[] values = maxN(copyContext, depth - 1, maximisingPlayer, alpha, beta, numPlayers, stopTime);
-
-			if (System.currentTimeMillis() >= stopTime || wantsInterrupt)	// time to abort search
-			{
-				return null;
-			}
-
-			if (values[mover] > score)
-			{
-				score = values[mover];
-				returnScores = values;
-				maximisingPlayerTieBreaker = values[maximisingPlayer];
-			}
-			else if (values[mover] == score && mover != maximisingPlayer)
-			{
-				if (values[maximisingPlayer] < maximisingPlayerTieBreaker)
-				{
-					returnScores = values;
-					maximisingPlayerTieBreaker = values[maximisingPlayer];
-				}
-			}
-
-			if (score >= beta)		// a winning move, only type of pruning we can do in Max^n
-				break;
-		}
-
-		return returnScores;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -987,18 +690,12 @@ public class AlphaBetaSearch extends ExpertPolicy
 		lastReturnedMove = null;
 		
 		numPlayersInGame = game.players().count();
-		
-		if (game.usesStateComparison() || game.usesStateComparisonWithinATurn())
-			transpositionTable = null;
-		else
-			transpositionTable = new TranspositionTable(12);
-		
 	}
 	
 	@Override
 	public boolean supportsGame(final Game game)
 	{
-		if (game.players().count() <= 1)
+		if (game.players().count() <= 2)
 			return false;
 		
 		if (game.isStochasticGame())
@@ -1119,12 +816,12 @@ public class AlphaBetaSearch extends ExpertPolicy
 	
 	/**
 	 * @param lines
-	 * @return Constructs an Alpha-Beta Search object from instructions in the 
+	 * @return Constructs a BRS+ object from instructions in the 
 	 * given array of lines
 	 */
-	public static AlphaBetaSearch fromLines(final String[] lines)
+	public static BRSPlus fromLines(final String[] lines)
 	{
-		String friendlyName = "Alpha-Beta";
+		String friendlyName = "BRS+";
 		String heuristicsFilepath = null;
 
 		for (final String line : lines)
@@ -1141,13 +838,13 @@ public class AlphaBetaSearch extends ExpertPolicy
 			}
 		}
 		
-		AlphaBetaSearch alphaBeta = null;
+		BRSPlus brsPlus = null;
 		
 		if (heuristicsFilepath != null)
 		{
 			try
 			{
-				alphaBeta = new AlphaBetaSearch(heuristicsFilepath);
+				brsPlus = new BRSPlus(heuristicsFilepath);
 			} 
 			catch (final IOException e)
 			{
@@ -1155,12 +852,12 @@ public class AlphaBetaSearch extends ExpertPolicy
 			}
 		}
 		
-		if (alphaBeta == null)
-			alphaBeta = new AlphaBetaSearch();
+		if (brsPlus == null)
+			brsPlus = new BRSPlus();
 
-		alphaBeta.friendlyName = friendlyName;
+		brsPlus.friendlyName = friendlyName;
 
-		return alphaBeta;
+		return brsPlus;
 	}
 	
 	//-------------------------------------------------------------------------

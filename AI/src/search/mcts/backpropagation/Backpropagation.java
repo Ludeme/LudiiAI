@@ -1,10 +1,13 @@
 package search.mcts.backpropagation;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
+import search.mcts.MCTS;
+import search.mcts.MCTS.ActionStatistics;
+import search.mcts.MCTS.MoveKey;
 import search.mcts.nodes.BaseNode;
-import search.mcts.nodes.BaseNode.MoveKey;
 import search.mcts.nodes.BaseNode.NodeStatistics;
 import util.Context;
 import util.Move;
@@ -23,7 +26,9 @@ public final class Backpropagation
 	public final int backpropFlags;
 	
 	/** AMAF stats per node for use by GRAVE (may be slightly different than stats used by RAVE/AMAF) */
-	public final static int GRAVE_STATS		= 0x0001;
+	public final static int GRAVE_STATS			= 0x1;
+	/** Global MCTS-wide action statistics (e.g., for Progressive History) */
+	public final static int GLOBAL_ACTION_STATS	= (0x1 << 1);
 	
 	//-------------------------------------------------------------------------
 	
@@ -40,6 +45,7 @@ public final class Backpropagation
 	
 	/**
 	 * Updates the given node with statistics based on the given trial
+	 * @param mcts
 	 * @param startNode
 	 * @param context
 	 * @param utilities
@@ -47,6 +53,7 @@ public final class Backpropagation
 	 */
 	public void update
 	(
+		final MCTS mcts,
 		final BaseNode startNode, 
 		final Context context, 
 		final double[] utilities, 
@@ -57,17 +64,18 @@ public final class Backpropagation
 		
 		//System.out.println("utilities = " + Arrays.toString(utilities));
 		final boolean updateGRAVE = ((backpropFlags & GRAVE_STATS) != 0);
+		final boolean updateGlobalActionStats = ((backpropFlags & GLOBAL_ACTION_STATS) != 0);
 		final List<MoveKey> moveKeysAMAF = new ArrayList<MoveKey>();
-		final List<Move> trialMoves = context.trial().generateCompleteMovesList();
-		final int numTrialMoves = trialMoves.size();
+		final Iterator<Move> reverseMovesIterator = context.trial().reverseMoveIterator();
+		final int numTrialMoves = context.trial().numMoves();
 		int movesIdxAMAF = numTrialMoves - 1;
 		
-		if (updateGRAVE)
+		if (updateGRAVE || updateGlobalActionStats)
 		{
 			// collect all move keys for playout moves
 			while (movesIdxAMAF >= (numTrialMoves - numPlayoutMoves))
 			{
-				moveKeysAMAF.add(new MoveKey(trialMoves.get(movesIdxAMAF), movesIdxAMAF));
+				moveKeysAMAF.add(new MoveKey(reverseMovesIterator.next(), movesIdxAMAF));
 				--movesIdxAMAF;
 			}
 		}
@@ -76,7 +84,6 @@ public final class Backpropagation
 		{
 			// TODO state evaluation function would be useful instead of
 			// defaulting to 0 for unfinished games
-			
 			node.update(utilities);
 			
 			if (updateGRAVE)
@@ -87,10 +94,10 @@ public final class Backpropagation
 					//System.out.println("updating GRAVE stats in " + node + " for move: " + moveKey);
 					graveStats.visitCount += 1;
 					graveStats.accumulatedScore += utilities[context.state().playerToAgent(moveKey.move.mover())];
-					
+
 					// the below would be sufficient for RAVE, but for GRAVE we also need moves
 					// made by the "incorrect" colour in higher-up nodes
-					
+
 					/*
 					final int mover = moveKey.move.mover();
 					if (nodeColour == 0 || nodeColour == mover)
@@ -100,16 +107,31 @@ public final class Backpropagation
 						graveStats.accumulatedScore += utilities[mover];
 					}*/
 				}
+			}
 				
+			if (updateGRAVE || updateGlobalActionStats)
+			{
 				// we're going up one level, so also one more move to count as AMAF-move
 				if (movesIdxAMAF >= 0)
 				{
-					moveKeysAMAF.add(new MoveKey(trialMoves.get(movesIdxAMAF), movesIdxAMAF));
+					moveKeysAMAF.add(new MoveKey(reverseMovesIterator.next(), movesIdxAMAF));
 					--movesIdxAMAF;
 				}
 			}
 			
 			node = node.parent();
+		}
+		
+		if (updateGlobalActionStats)
+		{
+			// Update global, MCTS-wide action statistics
+			for (final MoveKey moveKey : moveKeysAMAF)
+			{
+				final ActionStatistics actionStats = mcts.getOrCreateActionStatsEntry(moveKey);
+				//System.out.println("updating global action stats for move: " + moveKey);
+				actionStats.visitCount += 1.0;
+				actionStats.accumulatedScore += utilities[context.state().playerToAgent(moveKey.move.mover())];
+			}
 		}
 	}
 	

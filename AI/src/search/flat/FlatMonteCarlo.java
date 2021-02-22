@@ -109,11 +109,9 @@ public class FlatMonteCarlo extends AI
 					copyContext, 
 					null, 
 					1.0, 
-					null, 
-					null, 
+					null,  
 					0, 
 					-1,
-					-1.f, 
 					ThreadLocalRandom.current()
 				);
 			}

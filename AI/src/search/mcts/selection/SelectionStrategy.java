@@ -2,6 +2,7 @@ package search.mcts.selection;
 
 import org.json.JSONObject;
 
+import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 
 /**
@@ -19,10 +20,11 @@ public interface SelectionStrategy
 	 * Should be implemented to select the index of a child of the current 
 	 * node to traverse to.
 	 * 
+	 * @param mcts
 	 * @param current
 	 * @return Index of child.
 	 */
-	public int select(final BaseNode current);
+	public int select(final MCTS mcts, final BaseNode current);
 	
 	//-------------------------------------------------------------------------
 	
