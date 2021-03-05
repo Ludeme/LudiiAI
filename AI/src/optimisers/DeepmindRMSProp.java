@@ -74,8 +74,8 @@ public class DeepmindRMSProp extends Optimiser
 	{
 		//super(0.005f);
 		super(0.05f);
-		//this.momentum = 0.9f;
-		this.momentum = 0.f;
+		this.momentum = 0.9f;
+		//this.momentum = 0.f;
 		this.decay = 0.9f;
 		this.epsilon = 1.E-8f;
 	}
@@ -88,8 +88,8 @@ public class DeepmindRMSProp extends Optimiser
 	public DeepmindRMSProp(final float baseStepSize) 
 	{
 		super(baseStepSize);
-		//this.momentum = 0.9f;
-		this.momentum = 0.f;
+		this.momentum = 0.9f;
+		//this.momentum = 0.f;
 		this.decay = 0.9f;
 		this.epsilon = 1.E-8f;
 	}

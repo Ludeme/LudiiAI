@@ -1414,12 +1414,9 @@ public abstract class Feature
 	public boolean equals(final Object other)
 	{
 		if (!(other instanceof Feature))
-		{
 			return false;
-		}
 
 		final Feature otherFeature = (Feature) other;
-
 		return pattern.equals(otherFeature.pattern);
 	}
 

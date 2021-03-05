@@ -21,7 +21,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.filechooser.FileFilter;
 
-import features.FeatureSet;
+import features.feature_sets.FeatureSet;
 import features.features.Feature;
 import game.Game;
 

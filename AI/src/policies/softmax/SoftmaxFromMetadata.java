@@ -3,7 +3,7 @@ package policies.softmax;
 import java.util.ArrayList;
 import java.util.List;
 
-import features.FeatureSet;
+import features.feature_sets.FeatureSet;
 import function_approx.LinearFunction;
 import game.Game;
 import game.types.play.RoleType;

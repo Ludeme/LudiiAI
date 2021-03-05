@@ -49,19 +49,19 @@ public class NaiveSelfPlay implements Menagerie
 		final Heuristics heuristics
 	)
 	{
-		dev = new AgentCheckpoint(agentsParams.expertAI, features, heuristics);
+		dev = new AgentCheckpoint(agentsParams.expertAI, "Dev", features, heuristics);
 	}
 	
 	@Override
 	public void updateDevFeatures(final Features features)
 	{
-		dev = new AgentCheckpoint(dev.agentName, features, dev.heuristicsMetadata);
+		dev = new AgentCheckpoint(dev.agentName, "Dev", features, dev.heuristicsMetadata);
 	}
 	
 	@Override
 	public void updateDevHeuristics(final Heuristics heuristics)
 	{
-		dev = new AgentCheckpoint(dev.agentName, dev.featuresMetadata, heuristics);
+		dev = new AgentCheckpoint(dev.agentName, "Dev", dev.featuresMetadata, heuristics);
 	}
 	
 	@Override

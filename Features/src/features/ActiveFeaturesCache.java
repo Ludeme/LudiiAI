@@ -3,7 +3,8 @@ package features;
 import java.util.HashMap;
 import java.util.Map;
 
-import features.FeatureSet.ProactiveFeaturesKey;
+import features.feature_sets.FeatureSet;
+import features.feature_sets.FeatureSet.ProactiveFeaturesKey;
 import features.instances.Footprint;
 import main.collections.ChunkSet;
 import util.state.State;
@@ -394,7 +395,7 @@ public class ActiveFeaturesCache
 		{
 			this.activeFeatureIndices = activeFeatureIndices;
 			this.emptyStateCells = emptyStateCells;
-			this.emptyStateVertices = emptyStateEdges;
+			this.emptyStateVertices = emptyStateVertices;
 			this.emptyStateEdges = emptyStateEdges;
 			this.whoStateCells = whoStateCells;
 			this.whoStateVertices = whoStateVertices;

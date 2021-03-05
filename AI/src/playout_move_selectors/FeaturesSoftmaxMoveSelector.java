@@ -2,11 +2,11 @@ package playout_move_selectors;
 
 import java.util.List;
 
+import features.feature_sets.BaseFeatureSet;
 import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import util.Context;
-import util.FeatureSetInterface;
 import util.Move;
 import util.playout.PlayoutMoveSelector;
 
@@ -22,7 +22,7 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 	//-------------------------------------------------------------------------
 	
 	/** Feature sets (one per player, or just a shared one at index 0) */
-	protected final FeatureSetInterface[] featureSets;
+	protected final BaseFeatureSet[] featureSets;
 	
 	/** Weight vectors (one per player, or just a shared one at index 0) */
 	protected final FVector[] weights;
@@ -36,7 +36,7 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 	 */
 	public FeaturesSoftmaxMoveSelector
 	(
-		final FeatureSetInterface[] featureSets, 
+		final BaseFeatureSet[] featureSets, 
 		final FVector[] weights
 	)
 	{
@@ -55,7 +55,7 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 		final IsMoveReallyLegal isMoveReallyLegal
 	)
 	{
-		final FeatureSetInterface featureSet;
+		final BaseFeatureSet featureSet;
 		final FVector weightVector;
 		if (featureSets.length == 1)
 		{

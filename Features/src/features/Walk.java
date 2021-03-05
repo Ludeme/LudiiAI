@@ -475,9 +475,7 @@ public class Walk
 	public boolean equals(final Object other)
 	{
 		if (!(other instanceof Walk))
-		{
 			return false;
-		}
 		
 		return steps.equals(((Walk) other).steps());
 	}

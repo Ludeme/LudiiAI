@@ -5,7 +5,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import features.FeatureSet;
+import features.feature_sets.BaseFeatureSet;
+import features.feature_sets.FeatureSet;
 import function_approx.BoostedLinearFunction;
 import function_approx.LinearFunction;
 import game.Game;
@@ -45,7 +46,7 @@ public class GreedyPolicy extends Policy
 	 * If it contains only one feature set, it will be shared across all
 	 * players. Otherwise, it will contain one Feature Set per player.
 	 */
-	protected FeatureSet[] featureSets;
+	protected BaseFeatureSet[] featureSets;
 	
 	/** Auto-end playouts in a draw if they take more turns than this */
 	protected int playoutTurnLimit = 200;
@@ -87,7 +88,7 @@ public class GreedyPolicy extends Policy
 		final boolean thresholded
 	)
 	{
-		final FeatureSet featureSet;
+		final BaseFeatureSet featureSet;
 		
 		if (featureSets.length == 1)
 		{
@@ -108,7 +109,7 @@ public class GreedyPolicy extends Policy
 	@Override
 	public float computeLogit(final Context context, final Move move)
 	{
-		final FeatureSet featureSet;
+		final BaseFeatureSet featureSet;
 		
 		if (featureSets.length == 1)
 		{
@@ -348,7 +349,7 @@ public class GreedyPolicy extends Policy
 	) 
 	{
 		final Moves actions = game.moves(context);
-		final FeatureSet featureSet;
+		final BaseFeatureSet featureSet;
 		
 		if (featureSets.length == 1)
 		{
@@ -400,17 +401,13 @@ public class GreedyPolicy extends Policy
 				supportedPlayers[i] = i + 1;
 			}
 			
-			featureSets[0].instantiateFeatures(game, supportedPlayers, linearFunctions[0].effectiveParams());
+			featureSets[0].init(game, supportedPlayers, linearFunctions[0].effectiveParams());
 		}
 		else
 		{
 			for (int i = 1; i < featureSets.length; ++i)
 			{
-				if (!featureSets[i].hasInstantiatedFeatures(game, linearFunctions[i].effectiveParams()))
-				{
-					// need to instantiate features
-					featureSets[i].instantiateFeatures(game, new int[] {i}, linearFunctions[i].effectiveParams());
-				}
+				featureSets[i].init(game, new int[] {i}, linearFunctions[i].effectiveParams());
 			}
 		}
 	}

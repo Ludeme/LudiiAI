@@ -382,6 +382,11 @@ public final class LudiiGameWrapper
 		{
 			return new int[] {MOVE_SWAP_CHANNEL_IDX, 0, 0};
 		}
+		else if (move.isOtherMove())
+		{
+			//  TODO stop treating these all as passes
+			return new int[] {MOVE_PASS_CHANNEL_IDX, 0, 0};
+		}
 		else
 		{
 			final int from = move.fromNonDecision();

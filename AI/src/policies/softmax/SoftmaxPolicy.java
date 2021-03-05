@@ -10,7 +10,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import features.FeatureSet;
+import features.feature_sets.BaseFeatureSet;
+import features.feature_sets.FeatureSet;
 import features.features.Feature;
 import function_approx.BoostedLinearFunction;
 import function_approx.LinearFunction;
@@ -67,7 +68,7 @@ public class SoftmaxPolicy extends Policy
 	 * If it contains only one feature set, it will be shared across all
 	 * players. Otherwise, it will contain one Feature Set per player.
 	 */
-	protected FeatureSet[] featureSets;
+	protected BaseFeatureSet[] featureSets;
 	
 	/** 
 	 * If >= 0, we'll only actually use this softmax policy in MCTS play-outs
@@ -103,7 +104,7 @@ public class SoftmaxPolicy extends Policy
 	public SoftmaxPolicy
 	(
 		final LinearFunction[] linearFunctions, 
-		final FeatureSet[] featureSets
+		final BaseFeatureSet[] featureSets
 	)
 	{
 		this.linearFunctions = linearFunctions;
@@ -122,7 +123,7 @@ public class SoftmaxPolicy extends Policy
 	public SoftmaxPolicy
 	(
 		final LinearFunction[] linearFunctions, 
-		final FeatureSet[] featureSets,
+		final BaseFeatureSet[] featureSets,
 		final int playoutActionLimit
 	)
 	{
@@ -177,7 +178,7 @@ public class SoftmaxPolicy extends Policy
 		final boolean thresholded
 	)
 	{
-		final FeatureSet featureSet;
+		final BaseFeatureSet featureSet;
 		
 		if (featureSets.length == 1)
 			featureSet = featureSets[0];
@@ -190,7 +191,7 @@ public class SoftmaxPolicy extends Policy
 	@Override
 	public float computeLogit(final Context context, final Move move)
 	{
-		final FeatureSet featureSet;
+		final BaseFeatureSet featureSet;
 		
 		if (featureSets.length == 1)
 			featureSet = featureSets[0];
@@ -323,7 +324,7 @@ public class SoftmaxPolicy extends Policy
 	 * 
 	 * @param newFeatureSets
 	 */
-	public void updateFeatureSets(final FeatureSet[] newFeatureSets)
+	public void updateFeatureSets(final BaseFeatureSet[] newFeatureSets)
 	{
 		for (int i = 0; i < linearFunctions.length; ++i)
 		{
@@ -513,7 +514,7 @@ public class SoftmaxPolicy extends Policy
 	)
 	{
 		final Moves actions = game.moves(context);
-		final FeatureSet featureSet;
+		final BaseFeatureSet featureSet;
 			
 		if (featureSets.length == 1)
 		{
@@ -552,17 +553,13 @@ public class SoftmaxPolicy extends Policy
 				supportedPlayers[i] = i + 1;
 			}
 			
-			featureSets[0].instantiateFeatures(game, supportedPlayers, linearFunctions[0].effectiveParams());
+			featureSets[0].init(game, supportedPlayers, linearFunctions[0].effectiveParams());
 		}
 		else
 		{
 			for (int i = 1; i < featureSets.length; ++i)
 			{
-				if (!featureSets[i].hasInstantiatedFeatures(game, linearFunctions[i].effectiveParams()))
-				{
-					// need to instantiate features
-					featureSets[i].instantiateFeatures(game, new int[] {i}, linearFunctions[i].effectiveParams());
-				}
+				featureSets[i].init(game, new int[] {i}, linearFunctions[i].effectiveParams());
 			}
 		}
 	}
@@ -592,7 +589,7 @@ public class SoftmaxPolicy extends Policy
 	/**
 	 * @return Feature Sets used by this policy
 	 */
-	public FeatureSet[] featureSets()
+	public BaseFeatureSet[] featureSets()
 	{
 		return featureSets;
 	}
@@ -609,7 +606,7 @@ public class SoftmaxPolicy extends Policy
 		if (featureSets.length == 1)
 		{
 			// Just a single featureset for all players
-			final FeatureSet featureSet = featureSets[0];
+			final BaseFeatureSet featureSet = featureSets[0];
 			final LinearFunction linFunc = linearFunctions[0];
 			final Pair[] pairs = new Pair[featureSet.features().length];
 			
@@ -633,7 +630,7 @@ public class SoftmaxPolicy extends Policy
 			
 			for (int p = 0; p < featureSets.length; ++p)
 			{
-				final FeatureSet featureSet = featureSets[p];
+				final BaseFeatureSet featureSet = featureSets[p];
 				if (featureSet == null)
 					continue;
 				

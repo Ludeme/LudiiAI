@@ -8,6 +8,7 @@ import expert_iteration.ExpertPolicy;
 import expert_iteration.params.AgentsParams;
 import game.Game;
 import gnu.trove.list.array.TFloatArrayList;
+import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import metadata.ai.features.Features;
 import metadata.ai.heuristics.Heuristics;
@@ -30,11 +31,17 @@ public class TournamentMenagerie implements Menagerie
 	/** Population of checkpoints */
 	private final List<AgentCheckpoint> population = new ArrayList<AgentCheckpoint>();
 	
-	/** First indexed by Player ID (in game), secondly indexed by index of population list */
-	private TFloatArrayList[] populationElosTable;
+	/** Indexed by index of population list; Elo rating (one for every agent in population) */
+	private TFloatArrayList populationElosTable;
 	
-	/** Elo ratings for dev (indexed by Player ID) */
-	private float[] devElos;
+	/** Elo rating for dev */
+	private float devElo = 0.f;
+	
+	/** First indexed by Player ID (in game), secondly indexed by index of population list */
+	private TIntArrayList[] agentPickCounts;
+	
+	/** How many checkpoints do we have? */
+	private int checkpointCounter = 0;
 	
 	/** Do we have to add our new dev to the population? */
 	private boolean shouldAddDev = false;
@@ -49,22 +56,29 @@ public class TournamentMenagerie implements Menagerie
 			population.add(dev);
 			shouldAddDev = false;
 			
-			// Initialise Elo ratings for new checkpoint
-			for (int p = 1; p < devElos.length; ++p)
+			// Initialise Elo rating for new checkpoint
+			if (checkpointCounter > 0)
+				populationElosTable.add(devElo);
+			else
+				populationElosTable.add(0.f);
+			
+			for (int p = 1; p < agentPickCounts.length; ++p)
 			{
-				populationElosTable[p].add(devElos[p]);
+				agentPickCounts[p].add(0);
 			}
+			
+			++checkpointCounter;
 		}
 		
-		final int[] agentIndices = new int[devElos.length];
+		final int[] agentIndices = new int[agentPickCounts.length];
 		agentIndices[0] = -1;
-		final List<ExpertPolicy> agents = new ArrayList<ExpertPolicy>(devElos.length);
+		final List<ExpertPolicy> agents = new ArrayList<ExpertPolicy>(agentPickCounts.length);
 		agents.add(null);
 		
 		// We will always use dev for at least one of the players
-		final int devIndex = ThreadLocalRandom.current().nextInt(1, devElos.length);
+		final int devIndex = ThreadLocalRandom.current().nextInt(1, agentPickCounts.length);
 		
-		for (int p = 1; p < devElos.length; ++p)
+		for (int p = 1; p < agentPickCounts.length; ++p)
 		{
 			if (p == devIndex)
 			{
@@ -74,17 +88,18 @@ public class TournamentMenagerie implements Menagerie
 			else
 			{
 				// Compute vector of probabilities for this player for all checkpoints based on Elo ratings
-				final FVector probs = new FVector(populationElosTable[p]);
+				final FVector probs = new FVector(populationElosTable);
 				final float max = probs.max();
-				
+	
 				for (int i = 0; i < probs.dim(); ++i)
 				{
 					probs.set(i, (float) Math.exp((probs.get(i) - max) / 400.f));
 				}
-				
+	
 				final int sampledAgentIdx = probs.sampleProportionally();
 				agents.add(population.get(sampledAgentIdx).generateAgent(game, agentsParams));
 				agentIndices[p] = sampledAgentIdx;
+				agentPickCounts[p].setQuick(sampledAgentIdx, agentPickCounts[p].getQuick(sampledAgentIdx) + 1);
 			}
 		}
 		
@@ -102,32 +117,44 @@ public class TournamentMenagerie implements Menagerie
 		final Heuristics heuristics
 	)
 	{
-		dev = new AgentCheckpoint(agentsParams.expertAI, features, heuristics);
+		dev = new AgentCheckpoint(agentsParams.expertAI, "Checkpoint " + checkpointCounter, features, heuristics);
+		devElo = 0.f;
 		population.clear();
 		shouldAddDev = true;
 		
 		final int numPlayers = game.players().count();
-		populationElosTable = new TFloatArrayList[numPlayers + 1];
-		devElos = new float[numPlayers + 1];
+		populationElosTable = new TFloatArrayList();
+		agentPickCounts = new TIntArrayList[numPlayers + 1];
 		
 		for (int p = 1; p <= numPlayers; ++p)
 		{
-			devElos[p] = 0.f;	// Initialise Elo rating
-			populationElosTable[p] = new TFloatArrayList();
+			agentPickCounts[p] = new TIntArrayList();
+		}
+		
+		// Start out with plain UCT and MC-GRAVE agents
+		for (final String startingAgent : new String[]{"UCT", "MC-GRAVE"})
+		{
+			population.add(new AgentCheckpoint(startingAgent, startingAgent, null, null));
+			populationElosTable.add(0.f);
+			
+			for (int p = 1; p <= numPlayers; ++p)
+			{
+				agentPickCounts[p].add(0);
+			}
 		}
 	}
 	
 	@Override
 	public void updateDevFeatures(final Features features)
 	{
-		dev = new AgentCheckpoint(dev.agentName, features, dev.heuristicsMetadata);
+		dev = new AgentCheckpoint(dev.agentName, "Checkpoint " + checkpointCounter, features, dev.heuristicsMetadata);
 		shouldAddDev = true;
 	}
 	
 	@Override
 	public void updateDevHeuristics(final Heuristics heuristics)
 	{
-		dev = new AgentCheckpoint(dev.agentName, dev.featuresMetadata, heuristics);
+		dev = new AgentCheckpoint(dev.agentName, "Checkpoint " + checkpointCounter, dev.featuresMetadata, heuristics);
 		shouldAddDev = true;
 	}
 	
@@ -139,33 +166,41 @@ public class TournamentMenagerie implements Menagerie
 		
 		float sumElos = 0.f;
 		
-		for (int p = 1; p < devElos.length; ++p)
+		for (int p = 1; p < agentPickCounts.length; ++p)
 		{
 			if (p == d.devIdx())
-				sumElos += devElos[p];
+				sumElos += devElo;
 			else
-				sumElos += populationElosTable[p].getQuick(d.agentIndices()[p]);
+				sumElos += populationElosTable.getQuick(d.agentIndices()[p]);
 		}
 		
-		for (int p = 1; p < devElos.length; ++p)
+		// Compute by how much to adjust all the Elo ratings
+		final float[] elosToAdd = new float[agentPickCounts.length];
+		
+		for (int p = 1; p < agentPickCounts.length; ++p)
 		{
 			final double pUtility = utilities[p];
 			final float pElo;
-			if (p == d.devIdx())
-				pElo = devElos[p];
-			else
-				pElo = populationElosTable[p].getQuick(d.agentIndices()[p]);
 			
-			final float avgOpponentsElo = (sumElos - pElo) / (devElos.length - 1);
+			if (p == d.devIdx())
+				pElo = devElo;
+			else
+				pElo = populationElosTable.getQuick(d.agentIndices()[p]);
+			
+			final float avgOpponentsElo = (sumElos - pElo) / (agentPickCounts.length - 1);
 			
 			final double expectedWinProb = 1.0 / (1.0 + (Math.pow(10.0, (pElo - avgOpponentsElo) / 400.0)));
 			final double expectedUtil = 2.0 * expectedWinProb - 1.0;
-			
-			// Update Elo rating
+			elosToAdd[p] += 30 * (pUtility - expectedUtil);
+		}
+		
+		// Do the actual Elo updates
+		for (int p = 1; p < agentPickCounts.length; ++p)
+		{
 			if (p == d.devIdx())
-				devElos[p] += 30 * (pUtility - expectedUtil);
+				devElo += elosToAdd[p];
 			else
-				populationElosTable[p].setQuick(d.agentIndices()[p], populationElosTable[p].getQuick(d.agentIndices()[p]) + 30 * (float) (pUtility - expectedUtil));
+				populationElosTable.setQuick(d.agentIndices()[p], populationElosTable.getQuick(d.agentIndices()[p]) + elosToAdd[p]);
 		}
 	}
 	
@@ -176,21 +211,23 @@ public class TournamentMenagerie implements Menagerie
 	{
 		final StringBuilder sb = new StringBuilder();
 		
-		sb.append("Dev Elos:\n");
-		for (int p = 1; p < devElos.length; ++p)
-		{
-			sb.append("P" + p + ": " + devElos[p] + "\n");
-		}
-		sb.append("\n");
-		
+		sb.append("\nDev Elo: " + devElo + "\n");
+
 		sb.append("Checkpoint Elos:\n");
 		for (int i = 0; i < population.size(); ++i)
 		{
-			sb.append("Checkpoint " + i + ": ");
-			for (int p = 1; p < devElos.length; ++p)
+			sb.append(population.get(i).checkpointName() + ": " + populationElosTable.getQuick(i) + "\n");
+		}
+		sb.append("\n");
+		
+		sb.append("Checkpoint Pick Counts:\n");
+		for (int i = 0; i < population.size(); ++i)
+		{
+			sb.append(population.get(i).checkpointName() + ": ");
+			for (int p = 1; p < agentPickCounts.length; ++p)
 			{
-				sb.append(populationElosTable[p].getQuick(i));
-				if (p + 1 < devElos.length)
+				sb.append(agentPickCounts[p].getQuick(i));
+				if (p + 1 < agentPickCounts.length)
 					sb.append(", ");
 			}
 			sb.append("\n");
@@ -214,14 +251,14 @@ public class TournamentMenagerie implements Menagerie
 		
 		/** Player index for which we picked the dev checkpoint */
 		private final int devIdx;
-		
+
 		/** For every player ID (except devIdx), the index of the checkpoint we used there */
 		private final int[] agentIndices;
 
 		/**
 		 * Constructor
 		 * @param agents
-		 * @param devIdx 
+		 * @param devIdx
 		 * @param agentIndices 
 		 */
 		public TournamentDrawnAgentsData(final List<ExpertPolicy> agents, final int devIdx, final int[] agentIndices)
@@ -232,19 +269,19 @@ public class TournamentMenagerie implements Menagerie
 		}
 		
 		/**
-		 * @return Player index for which we picked the dev checkpoint
-		 */
-		public int devIdx()
-		{
-			return devIdx;
-		}
-		
-		/**
 		 * @return For every player ID (except devIdx), the index of the checkpoint we used there
 		 */
 		public int[] agentIndices()
 		{
 			return agentIndices;
+		}
+		
+		/**
+		 * @return Player index for which we picked the dev checkpoint
+		 */
+		public int devIdx()
+		{
+			return devIdx;
 		}
 		
 	}

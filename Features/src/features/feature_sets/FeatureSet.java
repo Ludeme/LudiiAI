@@ -1,4 +1,4 @@
-package features;
+package features.feature_sets;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Stream;
 
+import features.ActiveFeaturesCache;
+import features.FeatureUtils;
+import features.Walk;
 import features.features.Feature;
 import features.instances.BitwiseTest;
 import features.instances.FeatureInstance;
@@ -31,7 +34,6 @@ import main.collections.ChunkSet;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import util.Context;
-import util.FeatureSetInterface;
 import util.Move;
 import util.Trial;
 import util.state.State;
@@ -44,13 +46,10 @@ import util.state.containerState.ContainerState;
  * 
  * @author Dennis Soemers
  */
-public class FeatureSet extends FeatureSetInterface 
+public class FeatureSet extends BaseFeatureSet 
 {
 	
 	//-------------------------------------------------------------------------
-	
-	/** Array of features */
-	protected final Feature[] features;
 	
 	/**
 	 * Reactive instances, indexed by:
@@ -99,9 +98,6 @@ public class FeatureSet extends FeatureSetInterface
 	 * containing all relevant Features.
 	 */
 	protected HashMap<ProactiveFeaturesKey, FastFeaturesNode[]> proactiveFeatures;
-	
-	/** Only features with an absolute value greater than this are considered relevant for AI */
-	public static final float FEATURE_WEIGHT_THRESHOLD = 0.001f;
 	
 	/**
 	 * Same as above, but only includes features with absolute weights that exceed the above
@@ -172,25 +168,23 @@ public class FeatureSet extends FeatureSetInterface
 		}
 	}
 	
-	//-------------------------------------------------------------------------
-	
-	/**
-	 * @return The array of features contained in this feature set
-	 */
-	public Feature[] features()
-	{
-		return features;
-	}
-	
-	/**
-	 * @return The number of features in this feature set
-	 */
-	public int getNumFeatures()
-	{
-		return features.length;
-	}
 	
 	//-------------------------------------------------------------------------
+	
+	@Override
+	public void init(final Game newGame, final int[] supportedPlayers, final FVector weights)
+	{
+		if (this.game == newGame)
+		{
+			if (this.featureInitWeights == null && weights == null)
+				return;		// Nothing to do, already instantiated
+			else if (this.featureInitWeights != null && this.featureInitWeights.equals(weights))
+				return;		// Also nothing to do here
+		}
+		
+		// Need to instantiate
+		instantiateFeatures(newGame, supportedPlayers, weights);
+	}
 	
 	/**
 	 * Instantiates all features for the given game.
@@ -199,7 +193,7 @@ public class FeatureSet extends FeatureSetInterface
 	 * @param supportedPlayers Players for which we should instantiate features
 	 * @param weights
 	 */
-	public void instantiateFeatures
+	private void instantiateFeatures
 	(
 		final Game newGame, 
 		final int[] supportedPlayers,
@@ -376,7 +370,7 @@ public class FeatureSet extends FeatureSetInterface
 		}
 		
 //		System.out.println("---");
-//		proactiveFeatures.get(new ProactiveFeaturesKey(1, 3, 2))[0].print(0);
+//		proactiveFeatures.get(new ProactiveFeaturesKey(1, -1, 0))[0].print(0);
 //		System.out.println("---");
 		
 		// finally, even more optimised forests where we remove nodes that
@@ -564,16 +558,7 @@ public class FeatureSet extends FeatureSetInterface
 		return activeFeatureIndices;
 	}
 	
-	/**
-	 * @param state
-	 * @param lastFrom
-	 * @param lastTo
-	 * @param from
-	 * @param to
-	 * @param player
-	 * @return A list of all feature instances that are active for a given 
-	 * state+action pair (where action is defined by from and to positions)
-	 */
+	@Override
 	public List<FeatureInstance> getActiveFeatureInstances
 	(
 		final State state, 
@@ -1468,13 +1453,7 @@ public class FeatureSet extends FeatureSetInterface
 		return null;
 	}
 	
-	/**
-	 * @param targetGame
-	 * @param firstFeatureInstance
-	 * @param secondFeatureInstance
-	 * @return Expanded feature set with the two given feature instances
-	 * combined, or null in the case of failure.
-	 */
+	@Override
 	public FeatureSet createExpandedFeatureSet
 	(
 		final Game targetGame,
@@ -1544,27 +1523,7 @@ public class FeatureSet extends FeatureSetInterface
 	
 	//-------------------------------------------------------------------------
 	
-	/**
-	 * @param targetGame
-	 * @param weights 
-	 * 
-	 * @return True if and only if we have already instantiated features for 
-	 * the given target Game
-	 */
-	public boolean hasInstantiatedFeatures(final Game targetGame, final FVector weights)
-	{
-		if (this.featureInitWeights == null)
-			return (this.game == targetGame && weights == null);
-		else
-			return (this.game == targetGame && this.featureInitWeights.equals(weights));
-	}
-	
-	//-------------------------------------------------------------------------
-	
-	/**
-	 * Writes the feature set to a file
-	 * @param filepath Filepath to write to
-	 */
+	@Override
 	public void toFile(final String filepath)
 	{
 		try (final PrintWriter writer = new PrintWriter(filepath, "UTF-8"))

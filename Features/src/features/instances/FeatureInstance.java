@@ -218,8 +218,9 @@ public final class FeatureInstance implements BitwiseTest
 		final int value
 	)
 	{
-		if (bitSetType == BitSetTypes.Empty)
+		switch (bitSetType)
 		{
+		case Empty:
 			if (active)
 			{
 				if (mustNotEmpty != null && mustNotEmpty.get(testSite))
@@ -274,9 +275,8 @@ public final class FeatureInstance implements BitwiseTest
 				mustNotEmpty.set(testSite);
 				allRestrictionsNull = false;
 			}
-		}
-		else if (bitSetType == BitSetTypes.Who)
-		{
+			break;
+		case Who:
 			if (active)
 			{
 				if (mustWhoMask != null && mustWhoMask.getChunk(testSite) != 0)
@@ -379,9 +379,8 @@ public final class FeatureInstance implements BitwiseTest
 				mustNotWhoMask.setChunk(testSite, BitTwiddling.maskI(mustNotWhoMask.chunkSize()));
 				allRestrictionsNull = false;
 			}
-		}
-		else if (bitSetType == BitSetTypes.What)
-		{
+			break;
+		case What:
 			if (active)
 			{
 				if (mustWhatMask != null && mustWhatMask.getChunk(testSite) != 0)
@@ -485,9 +484,8 @@ public final class FeatureInstance implements BitwiseTest
 				mustNotWhatMask.setChunk(testSite, BitTwiddling.maskI(mustNotWhatMask.chunkSize()));
 				allRestrictionsNull = false;
 			}
-		}
-		else
-		{
+			break;
+		default:
 			System.err.println("Warning: bitSetType " + bitSetType + " not supported by FeatureInstance.addTest()!");
 			return false;
 		}
@@ -1138,9 +1136,7 @@ public final class FeatureInstance implements BitwiseTest
 	public boolean equals(Object other)
 	{
 		if (!(other instanceof FeatureInstance))
-		{
 			return false;
-		}
 		
 		final FeatureInstance otherInstance = (FeatureInstance) other;
 		

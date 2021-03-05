@@ -12,14 +12,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
+import expert_iteration.feature_discovery.CorrelationBasedExpander;
+import expert_iteration.feature_discovery.FeatureSetExpander;
 import expert_iteration.menageries.Menagerie;
 import expert_iteration.menageries.Menagerie.DrawnAgentsData;
 import expert_iteration.menageries.NaiveSelfPlay;
@@ -32,22 +31,20 @@ import expert_iteration.params.OptimisersParams;
 import expert_iteration.params.OutParams;
 import expert_iteration.params.OutParams.CheckpointTypes;
 import expert_iteration.params.TrainingParams;
-import features.FeatureSet;
-import features.FeatureUtils;
 import features.elements.FeatureElement;
 import features.elements.RelativeFeatureElement;
+import features.feature_sets.BaseFeatureSet;
+import features.feature_sets.FeatureSet;
 import features.features.Feature;
 import features.generation.AtomicFeatureGenerator;
-import features.instances.FeatureInstance;
 import features.patterns.Pattern;
 import function_approx.BoostedLinearFunction;
 import function_approx.LinearFunction;
 import game.Game;
-import gnu.trove.impl.Constants;
+import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;
-import gnu.trove.map.hash.TObjectDoubleHashMap;
-import gnu.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.set.hash.TIntHashSet;
 import main.CommandLineArgParse;
 import main.CommandLineArgParse.ArgOption;
@@ -274,7 +271,26 @@ public class ExpertIteration
 					menagerie = new NaiveSelfPlay();
 				
 				// prepare our feature sets
-				FeatureSet[] featureSets = prepareFeatureSets();
+				BaseFeatureSet[] featureSets = prepareFeatureSets();
+				
+				// For every feature set, a list for every feature of its lifetime (how often it could've been active)
+				TLongArrayList[] featureLifetimes = new TLongArrayList[featureSets.length];
+				// For every feature set, a list for every feature of the ratio of cases in which it was active
+				TDoubleArrayList[] featureActiveRatios = new TDoubleArrayList[featureSets.length];
+				
+				for (int i = 0; i < featureSets.length; ++i)
+				{
+					if (featureSets[i] != null)
+					{
+						final TLongArrayList featureLifetimesList = new TLongArrayList();
+						featureLifetimesList.fill(0, featureSets[i].getNumFeatures(), 0L);
+						featureLifetimes[i] = featureLifetimesList;
+						
+						final TDoubleArrayList featureActiveRatiosList = new TDoubleArrayList();
+						featureActiveRatiosList.fill(0, featureSets[i].getNumFeatures(), 0.0);
+						featureActiveRatios[i] = featureActiveRatiosList;
+					}
+				}
 				
 				// prepare our linear functions
 				final LinearFunction[] crossEntropyFunctions = prepareCrossEntropyFunctions(featureSets);
@@ -304,6 +320,8 @@ public class ExpertIteration
 							ceExploreFunctions, 
 							featureSets
 						);
+				
+				final FeatureSetExpander featureSetExpander = new CorrelationBasedExpander();
 				
 				// Create matrices to track empirically-duplicate features
 				// 	First index: feature set index (indexes into array)
@@ -401,7 +419,7 @@ public class ExpertIteration
 						false
 					);
 					
-					final FeatureSet[] expandedFeatureSets = new FeatureSet[numPlayers + 1];
+					final BaseFeatureSet[] expandedFeatureSets = new BaseFeatureSet[numPlayers + 1];
 					
 					if 
 					(
@@ -430,14 +448,18 @@ public class ExpertIteration
 							if (batch.size() > 0)
 							{
 								final long startTime = System.currentTimeMillis();
-								final FeatureSet expandedFeatureSet = 
-										expandFeatureSetCorrelationBased
+								final BaseFeatureSet expandedFeatureSet = 
+										featureSetExpander.expandFeatureSet
 										(
 											batch.toArray(new ExItExperience[batch.size()]),
 											featureSets[0],
 											cePolicy,
 											game,
-											featureDiscoveryParams.combiningFeatureInstanceThreshold
+											featureDiscoveryParams.combiningFeatureInstanceThreshold,
+											featureActiveRatios[0],
+											objectiveParams, 
+											logWriter,
+											this
 										);
 
 								if (expandedFeatureSet != null)
@@ -449,7 +471,7 @@ public class ExpertIteration
 									}
 									
 									expandedFeatureSets[0] = expandedFeatureSet;
-									expandedFeatureSet.instantiateFeatures(game, supportedPlayers, null);
+									expandedFeatureSet.init(game, supportedPlayers, null);
 									
 									if (featureEquivalences != null)
 									{
@@ -492,20 +514,24 @@ public class ExpertIteration
 								if (batch.length > 0)
 								{
 									final long startTime = System.currentTimeMillis();
-									final FeatureSet expandedFeatureSet = 
-											expandFeatureSetCorrelationBased
+									final BaseFeatureSet expandedFeatureSet = 
+											featureSetExpander.expandFeatureSet
 											(
 												batch,
 												featureSets[p],
 												cePolicy,
 												game,
-												featureDiscoveryParams.combiningFeatureInstanceThreshold
+												featureDiscoveryParams.combiningFeatureInstanceThreshold,
+												featureActiveRatios[p],
+												objectiveParams, 
+												logWriter,
+												this
 											);
 									
 									if (expandedFeatureSet != null)
 									{
 										expandedFeatureSets[p] = expandedFeatureSet;
-										expandedFeatureSet.instantiateFeatures(game, new int[]{p}, null);
+										expandedFeatureSet.init(game, new int[]{p}, null);
 										
 										if (featureEquivalences != null)
 										{
@@ -521,6 +547,10 @@ public class ExpertIteration
 											newBitset.set(0, expandedFeatureSet.getNumFeatures());
 											featureEquivalences[p].add(newBitset);
 										}
+										
+										// Add new entry for lifetime and average activity
+										featureActiveRatios[p].add(0.0);
+										featureLifetimes[p].add(0L);
 									}
 									else
 									{
@@ -686,6 +716,46 @@ public class ExpertIteration
 						
 						if (valueFunction != null)
 							newExperience.setStateFeatureVector(valueFunction.computeStateFeatureVector(context, mover));
+						
+						// Update feature lifetimes and active ratios		TODO refactor into method
+						{
+							final List<TIntArrayList> sparseFeatureVectors = 
+									featureSets[mover].computeSparseFeatureVectors(context, legalMoves, false);
+							
+							for (final TIntArrayList featureVector : sparseFeatureVectors)
+							{
+								// Increase lifetime of all features by 1
+								featureLifetimes[mover].transformValues((final long l) -> {return l + 1L;});
+								
+								// Incrementally update all average feature values
+								final TDoubleArrayList list = featureActiveRatios[mover];
+								int vectorIdx = 0;
+								for (int i = 0; i < list.size(); ++i)
+								{
+									final double oldMean = list.getQuick(i);
+									
+									if (vectorIdx < featureVector.size() && featureVector.getQuick(vectorIdx) == i)
+									{
+										// ith feature is active
+										list.setQuick(i, oldMean + ((1.0 - oldMean) / featureLifetimes[mover].getQuick(i)));
+										++vectorIdx;
+									}
+									else
+									{
+										// ith feature is not active
+										list.setQuick(i, oldMean + ((0.0 - oldMean) / featureLifetimes[mover].getQuick(i)));
+									}
+								}
+								
+								if (vectorIdx != featureVector.size())
+								{
+									System.err.println("ERROR: expected vectorIdx == featureVector.size()!");
+									System.err.println("vectorIdx = " + vectorIdx);
+									System.err.println("featureVector.size() = " + featureVector.size());
+									System.err.println("featureVector = " + featureVector);
+								}
+							}
+						}
 						
 						gameExperienceSamples.get(mover).add(newExperience);
 
@@ -1499,7 +1569,7 @@ public class ExpertIteration
 			 * @param featureSets
 			 * @return
 			 */
-			private LinearFunction[] prepareCrossEntropyFunctions(final FeatureSet[] featureSets)
+			private LinearFunction[] prepareCrossEntropyFunctions(final BaseFeatureSet[] featureSets)
 			{
 				final LinearFunction[] linearFunctions = new LinearFunction[numPlayers + 1];
 				final int startP = trainingParams.sharedFeatureSet ? 0 : 1;
@@ -1598,7 +1668,7 @@ public class ExpertIteration
 			 */
 			private LinearFunction[] prepareTSPGFunctions
 			(
-				final FeatureSet[] featureSets, 
+				final BaseFeatureSet[] featureSets, 
 				final LinearFunction[] crossEntropyFunctions
 			)
 			{
@@ -1681,7 +1751,7 @@ public class ExpertIteration
 			 * @param featureSets
 			 * @return
 			 */
-			private LinearFunction[] prepareCEExploreFunctions(final FeatureSet[] featureSets)
+			private LinearFunction[] prepareCEExploreFunctions(final BaseFeatureSet[] featureSets)
 			{
 				final LinearFunction[] linearFunctions = new LinearFunction[numPlayers + 1];
 				
@@ -1829,9 +1899,9 @@ public class ExpertIteration
 			 * Creates (or loads) feature sets (one per player, or a single shared one)
 			 * @return
 			 */
-			private FeatureSet[] prepareFeatureSets()
+			private BaseFeatureSet[] prepareFeatureSets()
 			{
-				final FeatureSet[] featureSets;
+				final BaseFeatureSet[] featureSets;
 				final TIntArrayList newlyCreated = new TIntArrayList();
 				
 				if (trainingParams.sharedFeatureSet)
@@ -1883,7 +1953,7 @@ public class ExpertIteration
 						supportedPlayers[i] = i + 1;
 					}
 
-					featureSet.instantiateFeatures(game, supportedPlayers, null);
+					featureSet.init(game, supportedPlayers, null);
 					featureSets[0] = featureSet;
 				}
 				else
@@ -1932,7 +2002,7 @@ public class ExpertIteration
 							interrupted = true;
 						}
 						
-						featureSet.instantiateFeatures(game, new int[]{p}, null);
+						featureSet.init(game, new int[]{p}, null);
 						featureSets[p] = featureSet;
 					}
 				}
@@ -1983,7 +2053,7 @@ public class ExpertIteration
 							
 							if (newlyCreated.contains(mover))
 							{
-								final FeatureSet featureSet = featureSets[mover];
+								final BaseFeatureSet featureSet = featureSets[mover];
 								
 								// compute active feature indices for all actions
 								final List<TIntArrayList> sparseFeatureVectors = 
@@ -2025,7 +2095,7 @@ public class ExpertIteration
 						final int p = newlyCreated.getQuick(f);
 						
 						final TIntHashSet featuresToRemove = new TIntHashSet();
-						final FeatureSet featureSet = featureSets[p];
+						final BaseFeatureSet featureSet = featureSets[p];
 						final int numAtomicFeatures = featureSet.getNumFeatures();
 						
 						for (int i = 0; i < numAtomicFeatures; ++i)
@@ -2130,7 +2200,7 @@ public class ExpertIteration
 							supportedPlayers = new int[]{p};
 						}
 						
-						newFeatureSet.instantiateFeatures(game, supportedPlayers, null);
+						newFeatureSet.init(game, supportedPlayers, null);
 						featureSets[p] = newFeatureSet;
 						
 						logLine(logWriter, "Finished pruning atomic feature set for Player " + p);
@@ -2139,651 +2209,6 @@ public class ExpertIteration
 				}
 				
 				return featureSets;
-			}
-			
-			//-----------------------------------------------------------------
-			
-			// TODO make sure we can also correctly combine reactive features
-			
-			// TODO should put this monster into a class of its own
-			public FeatureSet expandFeatureSetCorrelationBased
-			(
-				final ExItExperience[] batch,
-				final FeatureSet featureSet,
-				final SoftmaxPolicy crossEntropyPolicy,
-				final Game g,
-				final int featureDiscoveryMaxNumFeatureInstances
-			)
-			{	
-				// we need a matrix C_f with, at every entry (i, j), 
-				// the sum of cases in which features i and j are both active
-				//
-				// we also need a similar matrix C_e with, at every entry (i, j),
-				// the sum of errors in cases where features i and j are both active
-				//
-				// NOTE: both of the above are symmetric matrices
-				//
-				// we also need a vector X_f with, for every feature i, the sum of
-				// cases where feature i is active. (we would need a similar vector
-				// with sums of squares, but that can be omitted because our features
-				// are binary)
-				//
-				// NOTE: in writing it is easier to mention X_f as described above as
-				// a separate vector, but actually we don't need it; we can simply
-				// use the main diagonal of C_f instead
-				//
-				// we need a scalar S which is the sum of all errors,
-				// and a scalar SS which is the sum of all squared errors
-				//
-				// Given a candidate pair of features (i, j), we can compute the
-				// correlation of that pair of features with the errors (an
-				// indicator of the candidate pair's potential to be useful) as
-				// (where n = the number of cases = number of state-action pairs):
-				//
-				//
-				//                 n * C_e(i, j) - C_f(i, j) * S
-				//------------------------------------------------------------
-				//  SQRT( n * C_f(i, j) - C_f(i, j)^2 ) * SQRT( n * SS - S^2 )
-				//
-				//
-				// For numeric stability with extremely large batch sizes, 
-				// it is better to compute this as:
-				// 
-				//                 n * C_e(i, j) - C_f(i, j) * S
-				//------------------------------------------------------------
-				//  SQRT( C_f(i, j) * (n - C_f(i, j)) ) * SQRT( n * SS - S^2 )
-				//
-				//
-				// We can similarly compare the correlation between any candidate pair 
-				// of features (i, j) and either of its constituents i (an indicator
-				// of redundancy of the candidate pair) as:
-				//
-				//
-				//                 n * C_f(i, j) - C_f(i, j) * X_f(i)
-				//--------------------------------------------------------------------
-				//  SQRT( n * C_f(i, j) - C_f(i, j)^2 ) * SQRT( n * X_f(i) - X_f(i)^2 )
-				//
-				//
-				// For numeric stability with extremely large batch sizes, 
-				// it is better to compute this as:
-				//
-				//                C_f(i, j) * (n - X_f(i))
-				//--------------------------------------------------------------------
-				//  SQRT( C_f(i, j) * (n - C_f(i, j)) ) * SQRT( X_f(i) * (n - X_f(i)) )
-				//
-				//
-				// (note; even better would be if we could compute correlation between
-				// candidate pair and ANY other feature, rather than just its
-				// constituents, but that would probably become too expensive)
-				//
-				// We want to maximise the absolute value of the first (correlation
-				// between candidate feature pair and distribution error), but minimise
-				// the worst-case absolute value of the second (correlation between 
-				// candidate feature pair and either of its constituents).
-				//
-				//
-				// NOTE: in all of the above, when we say "feature", we actually
-				// refer to a particular instantiation of a feature. This is important,
-				// because otherwise we wouldn't be able to merge different
-				// instantiations of the same feature into a more complex new feature
-				//
-				// Due to the large amount of possible pairings when considering
-				// feature instances, we implement our "matrices" using hash tables,
-				// and automatically ignore entries that would be 0 (they won't
-				// be created if such pairs are never observed activating together)
-				
-				int numCases = 0;	// we'll increment  this as we go
-				
-				// this is our C_f matrix
-				final TObjectIntHashMap<CombinableFeatureInstancePair> featurePairActivations = 
-						new TObjectIntHashMap<CombinableFeatureInstancePair>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 0);
-				
-				// this is our C_e matrix
-				final TObjectDoubleHashMap<CombinableFeatureInstancePair> errorSums = 
-						new TObjectDoubleHashMap<CombinableFeatureInstancePair>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 0.0);
-				
-				// these are our S and SS scalars
-				double sumErrors = 0.0;
-				double sumSquaredErrors = 0.0;
-				
-				// similar to some of the variables above, but specific for selection/playout errors
-				// these are only used for initial value of new feature, not for determining features to combine
-				final HashMap<CombinableFeatureInstancePair, Double> selectionErrorSums = 
-						new HashMap<CombinableFeatureInstancePair, Double>();
-				final double sumSelectionErrors = 0.0;
-				final double sumSquaredSelectionErrors = 0.0;
-				
-				final HashMap<CombinableFeatureInstancePair, Double> playoutErrorSums = 
-						new HashMap<CombinableFeatureInstancePair, Double>();
-				final double sumPlayoutErrors = 0.0;
-				final double sumSquaredPlayoutErrors = 0.0;
-				
-				// loop through all samples in batch
-				for (final ExItExperience sample : batch)
-				{
-					final List<TIntArrayList> sparseFeatureVectors = 
-							featureSet.computeSparseFeatureVectors
-							(
-								sample.state().state(), 
-								sample.state().lastDecisionMove(), 
-								sample.moves(), 
-								false
-							);
-					
-					final FVector apprenticePolicy = 
-							crossEntropyPolicy.computeDistribution(sparseFeatureVectors, sample.state().state().mover());
-					final FVector errors = 
-							crossEntropyPolicy.computeDistributionErrors
-							(
-								apprenticePolicy,
-								sample.expertDistribution()
-							);
-					
-					// create a Hash Set of features already in Feature Set; we won't
-					// have to consider combinations that are already in
-					final Set<Feature> existingFeatures = 
-							new HashSet<Feature>
-							(
-								(int) Math.ceil(featureSet.getNumFeatures() / 0.75f), 
-								0.75f
-							);
-					
-					for (final Feature feature : featureSet.features())
-					{
-						existingFeatures.add(feature);
-					}
-					
-					// every action in the sample is a new "case" (state-action pair)
-					for (int a = 0; a < sample.moves().size(); ++a)
-					{
-						++numCases;
-						
-						// keep track of pairs we've already seen in this "case"
-						final Set<CombinableFeatureInstancePair> observedCasePairs = 
-								new HashSet<CombinableFeatureInstancePair>(256, .75f);
-						
-						List<FeatureInstance> activeInstances = 
-								featureSet.getActiveFeatureInstances
-								(
-									sample.state().state(), 
-									FeatureUtils.fromPos(sample.state().lastDecisionMove()), 
-									FeatureUtils.toPos(sample.state().lastDecisionMove()), 
-									FeatureUtils.fromPos(sample.moves().get(a)), 
-									FeatureUtils.toPos(sample.moves().get(a)),
-									sample.moves().get(a).mover()
-								);
-						
-						if (activeInstances.size() > featureDiscoveryMaxNumFeatureInstances)
-						{
-							// too many active feature instances, we'll sort them
-							// by absolute weights and only consider combining the top ones
-							activeInstances.sort(new Comparator<FeatureInstance>() 
-							{
-
-								@Override
-								public int compare
-								(
-									final FeatureInstance instanceA,
-									final FeatureInstance instanceB
-								) 
-								{
-									final int featureIdxA = instanceA.feature().featureSetIndex();
-									final int featureIdxB = instanceB.feature().featureSetIndex();
-									
-									final float absWeightA = 
-											Math.abs
-											(
-												crossEntropyPolicy.linearFunction(sample.state().state().mover())
-												.effectiveParams().get(featureIdxA)
-											);
-									final float absWeightB = 
-											Math.abs
-											(
-												crossEntropyPolicy.linearFunction(sample.state().state().mover())
-												.effectiveParams().get(featureIdxB)
-											);
-
-									
-									if (absWeightA == absWeightB)
-										return 0;
-									else if (absWeightA > absWeightB)
-										return -1;
-									else
-										return 1;
-								}
-								
-							});
-							
-							activeInstances = activeInstances.subList(0, featureDiscoveryMaxNumFeatureInstances);
-						}
-						
-						final int numActiveInstances = activeInstances.size();
-						
-						float error = errors.get(a);
-						
-						if (objectiveParams.expDeltaValWeighting)
-						{
-							// Compute expected values of expert and apprentice policies
-							double expValueExpert = 0.0;
-							double expValueApprentice = 0.0;
-							final FVector expertQs = sample.expertValueEstimates();
-
-							for (int i = 0; i < expertQs.dim(); ++i)
-							{
-								expValueExpert += expertQs.get(i) * sample.expertDistribution().get(i);
-								expValueApprentice += expertQs.get(i) * apprenticePolicy.get(i);
-							}
-
-							// Scale the error
-							final double expDeltaValWeight = Math.max(
-									objectiveParams.expDeltaValWeightingLowerClip, 
-									(expValueExpert - expValueApprentice));
-							
-							error *= expDeltaValWeight;
-						}
-						
-						sumErrors += error;
-						sumSquaredErrors += error * error;
-						
-						for (int i = 0; i < numActiveInstances; ++i)
-						{
-							final FeatureInstance instanceI = activeInstances.get(i);
-							
-							// increment entries on ''main diagonals''
-							final CombinableFeatureInstancePair combinedSelf = 
-									new CombinableFeatureInstancePair(g, instanceI, instanceI);
-												
-							if (!observedCasePairs.contains(combinedSelf))
-							{
-								featurePairActivations.put
-								(
-									combinedSelf, 
-									featurePairActivations.get(combinedSelf) + 1
-								);
-								errorSums.put
-								(
-									combinedSelf, 
-									errorSums.get(combinedSelf) + error
-								);
-								
-								observedCasePairs.add(combinedSelf);
-							}
-												
-							for (int j = i + 1; j < numActiveInstances; ++j)
-							{
-								final FeatureInstance instanceJ = activeInstances.get(j);
-								
-								// increment off-diagonal entries
-								final CombinableFeatureInstancePair combined = 
-										new CombinableFeatureInstancePair(g, instanceI, instanceJ);
-								
-								if (!existingFeatures.contains(combined.combinedFeature))
-								{
-									if (!observedCasePairs.contains(combined))
-									{
-										featurePairActivations.put
-										(
-											combined, 
-											featurePairActivations.get(combined) + 1
-										);
-										errorSums.put
-										(
-											combined, 
-											errorSums.get(combined) + error
-										);
-										
-										observedCasePairs.add(combined);
-									}
-								}
-							}
-						}
-					}
-				}
-				
-				if (sumErrors == 0.0 || sumSquaredErrors == 0.0)
-				{
-					// incredibly rare case but appears to be possible in Fanorona
-					// we have nothing to guide our feature growing, so let's 
-					// just refuse to add a feature
-					return null;
-				}
-				
-				// construct all possible pairs and scores
-				// as we go, keep track of best score and index at which we can find it
-				final List<ScoredPair> scoredPairs = new ArrayList<ScoredPair>(featurePairActivations.size());
-				double bestScore = Double.NEGATIVE_INFINITY;
-				int bestPairIdx = -1;
-				
-				for (final CombinableFeatureInstancePair pair : featurePairActivations.keySet())
-				{
-					if (! pair.a.equals(pair.b))
-					{
-						// only interested in combinations of different instances
-						final int actsI = 
-								featurePairActivations.get
-								(
-									new CombinableFeatureInstancePair(g, pair.a, pair.a)
-								);
-						
-						final int actsJ = 
-								featurePairActivations.get
-								(
-									new CombinableFeatureInstancePair(g, pair.b, pair.b)
-								);
-						
-						final int pairActs = featurePairActivations.get(pair);
-						if (pairActs == numCases)
-						{
-							// Perfect correlation, so we should just skip this one
-							continue;
-						}
-						
-						if (actsI == numCases || actsJ == numCases)
-						{
-							// Perfect correlation, so we should just skip this one
-							continue;
-						}
-						
-						final double pairErrorSum = errorSums.get(pair);
-						
-						final double errorCorr = 
-								(
-									(numCases * pairErrorSum - pairActs * sumErrors) 
-									/ 
-									(
-										Math.sqrt(pairActs * (numCases - pairActs)) * 
-										Math.sqrt(numCases * sumSquaredErrors - sumErrors * sumErrors)
-									)
-								);
-						
-						final double featureCorrI = 
-								(
-									(pairActs * (numCases - actsI)) 
-									/ 
-									(
-										Math.sqrt(pairActs * (numCases - pairActs)) * 
-										Math.sqrt(actsI * (numCases - actsI))
-									)
-								);
-						
-						final double featureCorrJ = 
-								(
-									(pairActs * (numCases - actsJ)) 
-									/ 
-									(
-										Math.sqrt(pairActs * (numCases - pairActs)) * 
-										Math.sqrt(actsJ * (numCases - actsJ))
-									)
-								);
-						
-						final double worstFeatureCorr = 
-								Math.max
-								(
-									Math.abs(featureCorrI), 
-									Math.abs(featureCorrJ)
-								);
-						
-						final double score = Math.abs(errorCorr) * (1.0 - worstFeatureCorr);
-						
-						if (Double.isNaN(score))
-						{
-//							System.err.println("numCases = " + numCases);
-//							System.err.println("pairActs = " + pairActs);
-//							System.err.println("actsI = " + actsI);
-//							System.err.println("actsJ = " + actsJ);
-//							System.err.println("sumErrors = " + sumErrors);
-//							System.err.println("sumSquaredErrors = " + sumSquaredErrors);
-							continue;
-						}
-						
-						scoredPairs.add(new ScoredPair(pair, score));
-						if (score > bestScore)
-						{
-							bestScore = score;
-							bestPairIdx = scoredPairs.size() - 1;
-						}
-					}
-				}
-				
-				// keep trying to generate an expanded (by one) feature set, until
-				// we succeed (almost always this should be on the very first iteration)
-				while (scoredPairs.size() > 0)
-				{
-					// extract pair of feature instances we want to try combining
-					final ScoredPair bestPair = scoredPairs.remove(bestPairIdx);
-					
-					final FeatureSet newFeatureSet = 
-							featureSet.createExpandedFeatureSet(g, bestPair.pair.a, bestPair.pair.b);
-					
-					if (newFeatureSet != null)
-					{
-						final int actsI = 
-								featurePairActivations.get
-								(
-									new CombinableFeatureInstancePair(g, bestPair.pair.a, bestPair.pair.a)
-								);
-						
-						final int actsJ = 
-								featurePairActivations.get
-								(
-									new CombinableFeatureInstancePair(g, bestPair.pair.b, bestPair.pair.b)
-								);
-						
-						final int pairActs = 
-								featurePairActivations.get
-								(
-									new CombinableFeatureInstancePair(g, bestPair.pair.a, bestPair.pair.b)
-								);
-						
-						final double pairErrorSum = 
-								errorSums.get
-								(
-									new CombinableFeatureInstancePair(g, bestPair.pair.a, bestPair.pair.b)
-								);
-						
-						final double errorCorr = 
-								(
-									(numCases * pairErrorSum - pairActs * sumErrors) 
-									/ 
-									(
-										Math.sqrt(numCases * pairActs - pairActs * pairActs) * 
-										Math.sqrt(numCases * sumSquaredErrors - sumErrors * sumErrors)
-									)
-								);
-						
-						final double featureCorrI = 
-								(
-									(numCases * pairActs - pairActs * actsI) 
-									/ 
-									(
-										Math.sqrt(numCases * pairActs - pairActs * pairActs) * 
-										Math.sqrt(numCases * actsI - actsI * actsI)
-									)
-								);
-						
-						final double featureCorrJ = 
-								(
-									(numCases * pairActs - pairActs * actsJ) 
-									/ 
-									(
-										Math.sqrt(numCases * pairActs - pairActs * pairActs) * 
-										Math.sqrt(numCases * actsJ - actsJ * actsJ)
-									)
-								);
-						
-						logLine(logWriter, "New feature added!");
-						logLine(logWriter, "new feature = " + newFeatureSet.features()[newFeatureSet.getNumFeatures() - 1]);
-						logLine(logWriter, "active feature A = " + bestPair.pair.a.feature());
-						logLine(logWriter, "rot A = " + bestPair.pair.a.rotation());
-						logLine(logWriter, "ref A = " + bestPair.pair.a.reflection());
-						logLine(logWriter, "anchor A = " + bestPair.pair.a.anchorSite());
-						logLine(logWriter, "active feature B = " + bestPair.pair.b.feature());
-						logLine(logWriter, "rot B = " + bestPair.pair.b.rotation());
-						logLine(logWriter, "ref B = " + bestPair.pair.b.reflection());
-						logLine(logWriter, "anchor B = " + bestPair.pair.b.anchorSite());
-						logLine(logWriter, "score = " + bestPair.score);
-						logLine(logWriter, "correlation with errors = " + errorCorr);
-						logLine(logWriter, "correlation with first constituent = " + featureCorrI);
-						logLine(logWriter, "correlation with second constituent = " + featureCorrJ);
-						logLine(logWriter, "observed pair of instances " + pairActs + " times");
-						logLine(logWriter, "observed first constituent " + actsI + " times");
-						logLine(logWriter, "observed second constituent " + actsJ + " times");
-						
-						return newFeatureSet;
-					}
-					
-					// if we reach this point, it means we failed to create an
-					// expanded feature set with our top-score pair.
-					// so, we should search again for the next best pair
-					bestScore = Double.NEGATIVE_INFINITY;
-					bestPairIdx = -1;
-					
-					for (int i = 0; i < scoredPairs.size(); ++i)
-					{
-						if (scoredPairs.get(i).score > bestScore)
-						{
-							bestScore = scoredPairs.get(i).score;
-							bestPairIdx = i;
-						}
-					}
-				}
-				
-				return null;
-			}
-			
-			//-----------------------------------------------------------------
-			
-			/**
-			 * Wrapper class for a pair of combined feature instances and a score
-			 * 
-			 * @author Dennis Soemers
-			 */
-			final class ScoredPair
-			{
-				/** First int */
-				public final CombinableFeatureInstancePair pair;
-				
-				/** Score */
-				public final double score;
-				
-				/**
-				 * Constructor
-				 * @param score
-				 */
-				public ScoredPair(final CombinableFeatureInstancePair pair, final double score)
-				{
-					this.pair = pair;
-					this.score = score;
-				}
-			}
-			
-			//-----------------------------------------------------------------
-			
-			/**
-			 * Wrapper class for two feature instances that could be combined, with
-			 * hashCode() and equals() implementations that should be invariant to
-			 * small differences in instantiations (such as different anchor positions)
-			 * that would result in equal combined features.
-			 * 
-			 * @author Dennis Soemers
-			 */
-			final class CombinableFeatureInstancePair
-			{
-				/** First feature instance */
-				public final FeatureInstance a;
-				
-				/** Second feature instance */
-				public final FeatureInstance b;
-				
-				/** Feature obtained by combining the two instances */
-				protected final Feature combinedFeature;
-				
-				/** Cached hash code */
-				private int cachedHash = Integer.MIN_VALUE;
-				
-				/**
-				 * Constructor
-				 * @param g
-				 * @param a
-				 * @param b
-				 */
-				public CombinableFeatureInstancePair
-				(
-					final Game g,
-					final FeatureInstance a, 
-					final FeatureInstance b
-				)
-				{
-					this.a = a;
-					this.b = b;
-					
-					// we don't just arbitrarily combine a with b, but want to make
-					// sure to do so in a consistent, reproducible order
-					
-					if (a.feature().featureSetIndex() < b.feature().featureSetIndex())
-					{
-						combinedFeature = Feature.combineFeatures(g, a, b);
-					}
-					else if (b.feature().featureSetIndex() < a.feature().featureSetIndex())
-					{
-						combinedFeature = Feature.combineFeatures(g, b, a);
-					}
-					else
-					{
-						if (a.reflection() > b.reflection())
-						{
-							combinedFeature = Feature.combineFeatures(g, a, b);
-						}
-						else if (b.reflection() > a.reflection())
-						{
-							combinedFeature = Feature.combineFeatures(g, b, a);
-						}
-						else
-						{
-							if (a.rotation() < b.rotation())
-							{
-								combinedFeature = Feature.combineFeatures(g, a, b);
-							}
-							else if (b.rotation() < a.rotation())
-							{
-								combinedFeature = Feature.combineFeatures(g, b, a);
-							}
-							else
-							{
-								if (a.anchorSite() < b.anchorSite())
-									combinedFeature = Feature.combineFeatures(g, a, b);
-								else if (b.anchorSite() < a.anchorSite())
-									combinedFeature = Feature.combineFeatures(g, b, a);
-								else
-									combinedFeature = Feature.combineFeatures(g, a, b);
-							}
-						}
-					}
-				}
-				
-				@Override
-				public boolean equals(final Object other)
-				{
-					if (!(other instanceof CombinableFeatureInstancePair))
-						return false;
-					
-					return combinedFeature.equals(((CombinableFeatureInstancePair) other).combinedFeature);
-				}
-				
-				@Override
-				public int hashCode()
-				{
-					if (cachedHash == Integer.MIN_VALUE)
-						cachedHash = combinedFeature.hashCode();
-
-					return cachedHash;
-				}
-				
-				@Override
-				public String toString()
-				{
-					return combinedFeature + " (from " + a + " and " + b + ")";
-				}
 			}
 			
 			//-----------------------------------------------------------------
@@ -2902,7 +2327,7 @@ public class ExpertIteration
 			(
 				final int gameCounter, 
 				final long weightsUpdateCounter,
-				final FeatureSet[] featureSets, 
+				final BaseFeatureSet[] featureSets, 
 				final LinearFunction[] crossEntropyFunctions,
 				final LinearFunction[] tspgFunctions,
 				final LinearFunction[] ceExploreFunctions,
@@ -3212,7 +2637,7 @@ public class ExpertIteration
 		argParse.addOption(new ArgOption()
 				.withNames("--combining-feature-instance-threshold")
 				.help("At most this number of feature instances will be taken into account when combining features.")
-				.withDefault(Integer.valueOf(75))
+				.withDefault(Integer.valueOf(40))
 				.withNumVals(1)
 				.withType(OptionTypes.Int));
 		argParse.addOption(new ArgOption()

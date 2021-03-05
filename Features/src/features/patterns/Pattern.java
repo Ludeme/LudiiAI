@@ -756,34 +756,28 @@ public class Pattern
 	public boolean equals(final Object other)
 	{
 		if (!(other instanceof Pattern))
-		{
 			return false;
-		}
 		
 		final Pattern otherPattern = (Pattern) other;
 		
-		// for every feature element, we also need it to be present in other, 
+		// For every feature element, we also need it to be present in other, 
 		// and vice versa
 		if (featureElements.size() != otherPattern.featureElements.size())
-		{
 			return false;
-		}
 		
 		for (final FeatureElement element : featureElements)
 		{
 			if (!otherPattern.featureElements.contains(element))
-			{
 				return false;
-			}
 		}
 		
-		for (final FeatureElement element : otherPattern.featureElements())
-		{
-			if (!featureElements.contains(element))
-			{
-				return false;
-			}
-		}
+//		for (final FeatureElement element : otherPattern.featureElements())
+//		{
+//			if (!featureElements.contains(element))
+//			{
+//				return false;
+//			}
+//		}
 		
 		if (otherPattern.allowedRotations == null)
 		{
@@ -796,17 +790,12 @@ public class Pattern
 		else
 		{
 			if (allowedRotations.size() != otherPattern.allowedRotations.size())
-			{
 				return false;
-			}
 			
 			for (int i = 0; i < otherPattern.allowedRotations().size(); ++i)
 			{
-				if (!allowedRotations.contains(
-						otherPattern.allowedRotations().getQuick(i)))
-				{
+				if (!allowedRotations.contains(otherPattern.allowedRotations().getQuick(i)))
 					return false;
-				}
 			}
 		}
 		

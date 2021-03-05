@@ -31,6 +31,9 @@ public class AgentCheckpoint
 	/** Type of agent */
 	protected final String agentName;
 	
+	/** Descriptor of this agent in population */
+	protected final String checkpointName;
+	
 	/** Features metadata (can be null if this checkpoint doesn't use features) */
 	protected final Features featuresMetadata;
 	
@@ -42,17 +45,20 @@ public class AgentCheckpoint
 	/**
 	 * Constructor
 	 * @param agentName
+	 * @param checkpointName
 	 * @param featuresMetadata
 	 * @param heuristicsMetadata
 	 */
 	public AgentCheckpoint
 	(
 		final String agentName,
+		final String checkpointName,
 		final Features featuresMetadata,
 		final Heuristics heuristicsMetadata
 	)
 	{
 		this.agentName = agentName;
+		this.checkpointName = checkpointName;
 		this.featuresMetadata = featuresMetadata;
 		this.heuristicsMetadata = heuristicsMetadata;
 	}
@@ -186,6 +192,10 @@ public class AgentCheckpoint
 		{
 			ai = MCTS.createUCT();
 		}
+		else if (agentName.equals("MC-GRAVE"))
+		{
+			ai = (ExpertPolicy) AIFactory.createAI("MC-GRAVE");
+		}
 		else
 		{
 			System.err.println("Cannot recognise expert AI: " + agentsParams.expertAI);
@@ -199,6 +209,16 @@ public class AgentCheckpoint
 		}
 		
 		return ai;
+	}
+	
+	//-------------------------------------------------------------------------
+	
+	/**
+	 * @return Descriptor of this agent in the population
+	 */
+	public String checkpointName()
+	{
+		return checkpointName;
 	}
 	
 	//-------------------------------------------------------------------------
