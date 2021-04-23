@@ -5,11 +5,11 @@ import java.util.Arrays;
 import org.json.JSONObject;
 
 import game.Game;
+import other.context.Context;
+import other.trial.Trial;
 import policies.GreedyPolicy;
 import policies.softmax.SoftmaxPolicy;
 import search.mcts.MCTS;
-import util.Context;
-import util.Trial;
 
 /**
  * Interface for Play-out strategies for MCTS

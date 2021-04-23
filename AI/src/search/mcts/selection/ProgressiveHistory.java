@@ -2,12 +2,12 @@ package search.mcts.selection;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import other.move.Move;
 import search.mcts.MCTS;
 import search.mcts.MCTS.ActionStatistics;
 import search.mcts.MCTS.MoveKey;
 import search.mcts.backpropagation.Backpropagation;
 import search.mcts.nodes.BaseNode;
-import util.Move;
 
 /**
  * Progressive History, as described by Nijssen and Winands (2011)

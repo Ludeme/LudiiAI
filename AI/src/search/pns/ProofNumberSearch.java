@@ -3,11 +3,11 @@ package search.pns;
 import java.util.concurrent.ThreadLocalRandom;
 
 import game.Game;
+import other.AI;
+import other.context.Context;
+import other.move.Move;
 import search.pns.PNSNode.PNSNodeTypes;
 import search.pns.PNSNode.PNSNodeValues;
-import util.AI;
-import util.Context;
-import util.Move;
 
 /**
  * Proof-number search.
@@ -90,7 +90,7 @@ public class ProofNumberSearch extends AI
 			System.err.println("Warning: Current mover = " + context.state().mover() + ", but proof player = " + proofPlayer + "!");
 		}
 		
-		final PNSNode root = new PNSNode(null, new Context(context), proofGoal, proofPlayer);
+		final PNSNode root = new PNSNode(null, copyContext(context), proofGoal, proofPlayer);
 		evaluate(root);
 		setProofAndDisproofNumbers(root);
 		

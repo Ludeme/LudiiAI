@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import features.Walk;
-import features.features.Feature;
+import features.spatial.SpatialFeature;
+import features.spatial.Walk;
 import game.Game;
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;
@@ -57,7 +57,7 @@ public class FeatureToEPS
 	 */
 	public static void createEPS
 	(
-		final Feature feature, 
+		final SpatialFeature feature, 
 		final int player, 
 		final Game game,
 		final File outputFile

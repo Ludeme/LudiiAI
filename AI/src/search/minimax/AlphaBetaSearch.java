@@ -20,10 +20,10 @@ import metadata.ai.heuristics.Heuristics;
 import metadata.ai.heuristics.terms.HeuristicTerm;
 import metadata.ai.heuristics.terms.Material;
 import metadata.ai.heuristics.terms.MobilitySimple;
-import util.Context;
-import util.Move;
-import util.Trial;
-import util.state.State;
+import other.context.Context;
+import other.move.Move;
+import other.state.State;
+import other.trial.Trial;
 import utils.AIUtils;
 import utils.data_structures.transposition_table.TranspositionTable;
 import utils.data_structures.transposition_table.TranspositionTable.ABTTData;
@@ -141,7 +141,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 	{
 		friendlyName = "Alpha-Beta";
 		final String heuristicsStr = FileHandling.loadTextContentsFromFile(heuristicsFilepath);
-		this.heuristicValueFunction = (Heuristics)language.compiler.Compiler.compileObject
+		this.heuristicValueFunction = (Heuristics)compiler.Compiler.compileObject
 										(
 											heuristicsStr, 
 											"metadata.ai.heuristics.Heuristics",
@@ -296,7 +296,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			
 			for (int i = 0; i < numRootMoves; ++i)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				final Move m = sortedRootMoves.get(i);
 				game.apply(copyContext, m);
 				final float value = alphaBeta(copyContext, searchDepth - 1, alpha, beta, maximisingPlayer, stopTime);
@@ -532,7 +532,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			
 			for (int i = 0; i < numLegalMoves; ++i)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				final Move m = legalMoves.get(i);
 				game.apply(copyContext, m);
 				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime);
@@ -574,7 +574,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			
 			for (int i = 0; i < numLegalMoves; ++i)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				final Move m = legalMoves.get(i);
 				game.apply(copyContext, m);
 				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime);
@@ -675,7 +675,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			
 			for (int i = 0; i < numRootMoves; ++i)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				final Move m = sortedRootMoves.get(i);
 				game.apply(copyContext, m);
 				final float[] values = maxN(copyContext, searchDepth - 1, maximisingPlayer, rootAlphaInit, rootBetaInit, numPlayers, stopTime);
@@ -874,7 +874,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 		float maximisingPlayerTieBreaker = BETA_INIT;
 		for (int i = 0; i < numLegalMoves; ++i)
 		{
-			final Context copyContext = new Context(context);
+			final Context copyContext = copyContext(context);
 			final Move m = legalMoves.get(i);
 			game.apply(copyContext, m);
 			final float[] values = maxN(copyContext, depth - 1, maximisingPlayer, alpha, beta, numPlayers, stopTime);
@@ -958,7 +958,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 			final metadata.ai.Ai aiMetadata = game.metadata().ai();
 			if (aiMetadata != null && aiMetadata.heuristics() != null)
 			{
-				heuristicValueFunction = aiMetadata.heuristics();
+				heuristicValueFunction = Heuristics.copy(aiMetadata.heuristics());
 			}
 			else
 			{
@@ -988,7 +988,7 @@ public class AlphaBetaSearch extends ExpertPolicy
 		
 		numPlayersInGame = game.players().count();
 		
-		if (game.usesStateComparison() || game.usesStateComparisonWithinATurn())
+		if (game.usesPositionalStateComparison() || game.usesPositionalStateComparisonWithinATurn())
 			transpositionTable = null;
 		else
 			transpositionTable = new TranspositionTable(12);
@@ -1001,8 +1001,8 @@ public class AlphaBetaSearch extends ExpertPolicy
 		if (game.players().count() <= 1)
 			return false;
 		
-		if (game.isStochasticGame())
-			return false;
+//		if (game.isStochasticGame())
+//			return false;
 		
 		if (game.hiddenInformation())
 			return false;

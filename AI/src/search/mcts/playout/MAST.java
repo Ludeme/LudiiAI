@@ -5,15 +5,15 @@ import java.util.concurrent.ThreadLocalRandom;
 import game.Game;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.context.Context;
+import other.move.Move;
+import other.playout.PlayoutMoveSelector;
+import other.trial.Trial;
 import playout_move_selectors.EpsilonGreedyWrapper;
 import search.mcts.MCTS;
 import search.mcts.MCTS.ActionStatistics;
 import search.mcts.MCTS.MoveKey;
 import search.mcts.backpropagation.Backpropagation;
-import util.Context;
-import util.Move;
-import util.Trial;
-import util.playout.PlayoutMoveSelector;
 
 /**
  * Move-Average Sampling Technique (MAST) playout strategy (epsilon-greedy)

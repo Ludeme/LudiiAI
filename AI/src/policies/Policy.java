@@ -2,10 +2,10 @@ package policies;
 
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.AI;
+import other.context.Context;
+import other.move.Move;
 import search.mcts.playout.PlayoutStrategy;
-import util.AI;
-import util.Context;
-import util.Move;
 
 /**
  * A policy is something that can compute distributions over actions in a given

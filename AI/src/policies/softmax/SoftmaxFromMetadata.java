@@ -3,7 +3,7 @@ package policies.softmax;
 import java.util.ArrayList;
 import java.util.List;
 
-import features.feature_sets.FeatureSet;
+import features.feature_sets.BaseFeatureSet;
 import function_approx.LinearFunction;
 import game.Game;
 import game.types.play.RoleType;
@@ -20,16 +20,18 @@ public class SoftmaxFromMetadata extends SoftmaxPolicy
 	
 	/**
 	 * Constructor
+	 * @param epsilon Epsilon for epsilon-greedy feature-based playouts. 1 for uniform, 0 for always softmax
 	 */
-	public SoftmaxFromMetadata()
+	public SoftmaxFromMetadata(final double epsilon)
 	{
 		friendlyName = "Softmax Policy (features from Game metadata)";
+		this.epsilon = epsilon;
 	}
 
 	@Override
 	public void initAI(final Game game, final int playerID)
 	{
-		final List<FeatureSet> featureSetsList = new ArrayList<FeatureSet>();
+		final List<BaseFeatureSet> featureSetsList = new ArrayList<BaseFeatureSet>();
 		final List<LinearFunction> linFuncs = new ArrayList<LinearFunction>();
 		
 		final Features featuresMetadata = game.metadata().ai().features();
@@ -42,7 +44,7 @@ public class SoftmaxFromMetadata extends SoftmaxPolicy
 				addFeatureSetWeights(featureSet.role().owner(), featureSet.featureStrings(), featureSet.featureWeights(), featureSetsList, linFuncs);
 		}
 		
-		this.featureSets = featureSetsList.toArray(new FeatureSet[featureSetsList.size()]);
+		this.featureSets = featureSetsList.toArray(new BaseFeatureSet[featureSetsList.size()]);
 		this.linearFunctions = linFuncs.toArray(new LinearFunction[linFuncs.size()]);
 		this.playoutActionLimit = 200;
 		

@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import features.feature_sets.BaseFeatureSet;
-import features.feature_sets.FeatureSet;
+import features.feature_sets.prop.PropFeatureSet;
 import function_approx.BoostedLinearFunction;
 import function_approx.LinearFunction;
 import game.Game;
@@ -14,11 +14,11 @@ import game.rules.play.moves.Moves;
 import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.context.Context;
+import other.move.Move;
+import other.trial.Trial;
 import playout_move_selectors.FeaturesSoftmaxMoveSelector;
 import search.mcts.MCTS;
-import util.Context;
-import util.Move;
-import util.Trial;
 import utils.ExperimentFileUtils;
 
 /**
@@ -71,7 +71,7 @@ public class GreedyPolicy extends Policy
 	public GreedyPolicy
 	(
 		final LinearFunction[] linearFunctions, 
-		final FeatureSet[] featureSets
+		final BaseFeatureSet[] featureSets
 	)
 	{
 		this.linearFunctions = linearFunctions;
@@ -319,13 +319,13 @@ public class GreedyPolicy extends Policy
 				};
 			}
 						
-			this.featureSets = new FeatureSet[linearFunctions.length];
+			this.featureSets = new BaseFeatureSet[linearFunctions.length];
 			
 			for (int i = 0; i < linearFunctions.length; ++i)
 			{
 				if (linearFunctions[i] != null)
 				{
-					featureSets[i] = new FeatureSet(parentDir + File.separator + linearFunctions[i].featureSetFile());
+					featureSets[i] = new PropFeatureSet(parentDir + File.separator + linearFunctions[i].featureSetFile());
 				}
 			}
 		}

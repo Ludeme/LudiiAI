@@ -28,9 +28,6 @@ public class TrainingParams
 	/** If true, we train a single shared feature set for all players (and boosted weights per player) */
 	public boolean sharedFeatureSet;
 	
-	/** If true, we divide gradients of empirically-duplicate features by number of duplicates */
-	public boolean handleDuplicateFeatures;
-	
 	//-------------------------------------------------------------------------
 
 }

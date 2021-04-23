@@ -9,14 +9,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import features.Walk;
-import features.elements.FeatureElement;
-import features.elements.FeatureElement.ElementType;
-import features.elements.RelativeFeatureElement;
-import features.features.AbsoluteFeature;
-import features.features.Feature;
-import features.features.RelativeFeature;
-import features.patterns.Pattern;
+import features.spatial.AbsoluteFeature;
+import features.spatial.Pattern;
+import features.spatial.RelativeFeature;
+import features.spatial.SpatialFeature;
+import features.spatial.Walk;
+import features.spatial.elements.FeatureElement;
+import features.spatial.elements.FeatureElement.ElementType;
+import features.spatial.elements.RelativeFeatureElement;
 import game.Game;
 import game.equipment.component.Component;
 import game.types.state.GameType;
@@ -43,7 +43,7 @@ public class AtomicFeatureGenerator
 	protected final Game game;
 
 	/** Generated features */
-	protected final List<Feature> features;
+	protected final List<SpatialFeature> features;
 
 	//-------------------------------------------------------------------------
 	
@@ -65,11 +65,11 @@ public class AtomicFeatureGenerator
 	{
 		this.game = game;
 		this.features = simplifyFeatureSet(generateFeatures(maxWalkSize, maxStraightWalkSize));
-		features.sort(new Comparator<Feature>() 
+		features.sort(new Comparator<SpatialFeature>() 
 		{
 
 			@Override
-			public int compare(final Feature o1, final Feature o2) 
+			public int compare(final SpatialFeature o1, final SpatialFeature o2) 
 			{
 				final List<FeatureElement> els1 = o1.pattern().featureElements();
 				final List<FeatureElement> els2 = o2.pattern().featureElements();
@@ -119,7 +119,7 @@ public class AtomicFeatureGenerator
 	/**
 	 * @return Generated features
 	 */
-	public List<Feature> getFeatures()
+	public List<SpatialFeature> getFeatures()
 	{
 		return features;
 	}
@@ -133,29 +133,28 @@ public class AtomicFeatureGenerator
 	 * @param maxStraightWalkSize
 	 * @return
 	 */
-	private List<Feature> generateFeatures(final int maxSize, final int maxStraightWalkSize)
+	private List<SpatialFeature> generateFeatures(final int maxSize, final int maxStraightWalkSize)
 	{
 		//final MoveFeatures moveFeaturesGenerator = new MoveFeatures(game);
 		//final List<Feature> moveFeatures = moveFeaturesGenerator.features();
 		//final Set<Feature> generatedFeatures = new HashSet<Feature>(16384);
 		//generatedFeatures.addAll(moveFeatures);
 		
-		final List<Feature> emptyFeatures = new ArrayList<Feature>();
+		final List<SpatialFeature> emptyFeatures = new ArrayList<SpatialFeature>();
 		emptyFeatures.add(new RelativeFeature(new Pattern(), new Walk(), null));
 		
 		if ((game.gameFlags() & GameType.UsesFromPositions) != 0L)
 			emptyFeatures.add(new RelativeFeature(new Pattern(), null, new Walk()));
 		
-		final Set<Feature> generatedFeatures = new HashSet<Feature>(16384);
+		final Set<SpatialFeature> generatedFeatures = new HashSet<SpatialFeature>(16384);
 		generatedFeatures.addAll(emptyFeatures);
 		
 		final TIntArrayList connectivities = game.board().topology().trueOrthoConnectivities(game);
 		final TFloatArrayList allGameRotations = Walk.allGameRotations(game);
 		final List<ElementType> elementTypes = FeatureGenerationUtils.usefulElementTypes(game);
 		
-		// TODO turn reactive features back on
-		//elementTypes.add(ElementType.LastFrom);
-		//elementTypes.add(ElementType.LastTo);
+		elementTypes.add(ElementType.LastFrom);
+		elementTypes.add(ElementType.LastTo);
 		
 		for (int walkSize = 0; walkSize <= maxStraightWalkSize; ++walkSize)
 		{
@@ -163,7 +162,7 @@ public class AtomicFeatureGenerator
 
 			// for every base feature, create new versions with all possible 
 			// additions of a Walk of length walkSize
-			for (final Feature baseFeature : emptyFeatures)
+			for (final SpatialFeature baseFeature : emptyFeatures)
 			{
 				final Pattern basePattern = baseFeature.pattern();
 
@@ -188,9 +187,7 @@ public class AtomicFeatureGenerator
 						}
 						else if (elementType == ElementType.IsPos)
 						{
-							System.err.println(
-									"WARNING: not yet including position indices in "
-											+ "AtomicFeatureGenerator.generateFeatures()");
+							System.err.println("WARNING: not yet including position indices in AtomicFeatureGenerator.generateFeatures()");
 						}
 						else if (elementType == ElementType.Connectivity)
 						{
@@ -236,7 +233,7 @@ public class AtomicFeatureGenerator
 										elementType != ElementType.LastTo
 									)
 									{
-										final Feature newFeature;
+										final SpatialFeature newFeature;
 
 										if (baseFeature instanceof AbsoluteFeature)
 										{
@@ -284,7 +281,7 @@ public class AtomicFeatureGenerator
 			}
 		}
 
-		return new ArrayList<Feature>(generatedFeatures);
+		return new ArrayList<SpatialFeature>(generatedFeatures);
 	}
 	
 	/**
@@ -357,12 +354,12 @@ public class AtomicFeatureGenerator
 	 * 	rotated by a certain amount; keeps only one of them (with the required
 	 * 	rotation allowed)
 	 * 
-	 * @param features
+	 * @param featuresIn
 	 * @return
 	 */
-	private List<Feature> simplifyFeatureSet(final List<Feature> featuresIn)
+	private List<SpatialFeature> simplifyFeatureSet(final List<SpatialFeature> featuresIn)
 	{
-		final List<Feature> simplified = new ArrayList<Feature>(featuresIn.size());
+		final List<SpatialFeature> simplified = new ArrayList<SpatialFeature>(featuresIn.size());
 		
 		final Map<Object, RotRefInvariantFeature> featuresToKeep = 
 				new HashMap<Object, RotRefInvariantFeature>();
@@ -370,7 +367,7 @@ public class AtomicFeatureGenerator
 		final TFloatArrayList rotations = Walk.allGameRotations(game);
 		final boolean[] reflections = {true, false};
 		
-		for (final Feature feature : featuresIn)
+		for (final SpatialFeature feature : featuresIn)
 		{
 			boolean shouldAddFeature = true;
 			
@@ -382,7 +379,7 @@ public class AtomicFeatureGenerator
 				{
 					final boolean reflect = reflections[j];
 					
-					Feature rotatedFeature = feature.rotatedCopy(rotation);
+					SpatialFeature rotatedFeature = feature.rotatedCopy(rotation);
 					
 					if (reflect)
 					{
@@ -396,7 +393,7 @@ public class AtomicFeatureGenerator
 					{
 						shouldAddFeature = false; 
 						
-						final Feature keepFeature = featuresToKeep.remove(wrapped).feature;
+						final SpatialFeature keepFeature = featuresToKeep.remove(wrapped).feature;
 						
 						// make sure the feature that we decide to keep also
 						// allows for the necessary rotation
@@ -459,13 +456,13 @@ public class AtomicFeatureGenerator
 	private class RotRefInvariantFeature
 	{
 		/** Wrapped Feature */
-		protected Feature feature;
+		protected SpatialFeature feature;
 		
 		/**
 		 * Constructor
 		 * @param feature
 		 */
-		public RotRefInvariantFeature(final Feature feature)
+		public RotRefInvariantFeature(final SpatialFeature feature)
 		{
 			this.feature = feature;
 		}

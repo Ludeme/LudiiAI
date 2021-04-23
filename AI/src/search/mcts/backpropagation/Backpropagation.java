@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import other.context.Context;
+import other.move.Move;
 import search.mcts.MCTS;
 import search.mcts.MCTS.ActionStatistics;
 import search.mcts.MCTS.MoveKey;
 import search.mcts.nodes.BaseNode;
 import search.mcts.nodes.BaseNode.NodeStatistics;
-import util.Context;
-import util.Move;
 
 /**
  * Implements backpropagation of results for MCTS.

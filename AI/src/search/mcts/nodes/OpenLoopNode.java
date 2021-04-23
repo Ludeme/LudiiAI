@@ -6,9 +6,9 @@ import java.util.List;
 import game.Game;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.context.Context;
+import other.move.Move;
 import search.mcts.MCTS;
-import util.Context;
-import util.Move;
 
 /**
  * Node class for Open-Loop implementations of MCTS.
@@ -160,7 +160,7 @@ public final class OpenLoopNode extends BaseNode
     public void rootInit(final Context context)
     {
 		deterministicContext = context;
-		currentItContext = new Context(context);
+		currentItContext = mcts.copyContext(context);
     	updateLegalMoveDependencies(true);
     }
 	
@@ -168,7 +168,7 @@ public final class OpenLoopNode extends BaseNode
     public void startNewIteration(final Context context)
     {
 		// make a copy of given context
-		currentItContext = new Context(context);
+		currentItContext = mcts.copyContext(context);
     }
 	
 	@Override

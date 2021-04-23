@@ -7,10 +7,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import game.Game;
 import main.collections.FVector;
 import main.collections.FastArrayList;
-import util.AI;
-import util.Context;
-import util.Move;
-import util.model.Model;
+import other.AI;
+import other.context.Context;
+import other.model.Model;
+import other.move.Move;
 import utils.AIUtils;
 
 /**
@@ -88,7 +88,7 @@ public class FlatMonteCarlo extends AI
 		// Simulate until we have to stop
 		while (numIterations < maxIts && System.currentTimeMillis() < stopTime)
 		{
-			final Context copyContext = new Context(context);
+			final Context copyContext = copyContext(context);
 			final Model model = copyContext.model();
 			
 			model.startNewStep(copyContext, null, 1.0, -1, -1, 0.0, false, false, false);

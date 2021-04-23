@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import other.move.Move;
 import search.mcts.nodes.BaseNode;
-import util.Move;
 
 /**
  * Selects move corresponding to the most robust child (highest visit count)

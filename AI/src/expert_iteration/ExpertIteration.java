@@ -10,7 +10,6 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,13 +30,13 @@ import expert_iteration.params.OptimisersParams;
 import expert_iteration.params.OutParams;
 import expert_iteration.params.OutParams.CheckpointTypes;
 import expert_iteration.params.TrainingParams;
-import features.elements.FeatureElement;
-import features.elements.RelativeFeatureElement;
 import features.feature_sets.BaseFeatureSet;
-import features.feature_sets.FeatureSet;
-import features.features.Feature;
+import features.feature_sets.prop.PropFeatureSet;
 import features.generation.AtomicFeatureGenerator;
-import features.patterns.Pattern;
+import features.spatial.Pattern;
+import features.spatial.SpatialFeature;
+import features.spatial.elements.FeatureElement;
+import features.spatial.elements.RelativeFeatureElement;
 import function_approx.BoostedLinearFunction;
 import function_approx.LinearFunction;
 import game.Game;
@@ -56,13 +55,13 @@ import main.grammar.Report;
 import metadata.ai.heuristics.Heuristics;
 import optimisers.Optimiser;
 import optimisers.OptimiserFactory;
+import other.GameLoader;
+import other.context.Context;
+import other.move.Move;
+import other.trial.Trial;
 import policies.softmax.SoftmaxPolicy;
 import search.mcts.MCTS;
 import search.mcts.utils.RegPolOptMCTS;
-import util.Context;
-import util.GameLoader;
-import util.Move;
-import util.Trial;
 import utils.AIUtils;
 import utils.ExperimentFileUtils;
 import utils.ExponentialMovingAverage;
@@ -249,7 +248,6 @@ public class ExpertIteration
 			
 			//-----------------------------------------------------------------
 
-			@SuppressWarnings("unchecked")
 			@Override
 			public void runExperiment()
 			{
@@ -283,11 +281,11 @@ public class ExpertIteration
 					if (featureSets[i] != null)
 					{
 						final TLongArrayList featureLifetimesList = new TLongArrayList();
-						featureLifetimesList.fill(0, featureSets[i].getNumFeatures(), 0L);
+						featureLifetimesList.fill(0, featureSets[i].getNumSpatialFeatures(), 0L);
 						featureLifetimes[i] = featureLifetimesList;
 						
 						final TDoubleArrayList featureActiveRatiosList = new TDoubleArrayList();
-						featureActiveRatiosList.fill(0, featureSets[i].getNumFeatures(), 0.0);
+						featureActiveRatiosList.fill(0, featureSets[i].getNumSpatialFeatures(), 0.0);
 						featureActiveRatios[i] = featureActiveRatiosList;
 					}
 				}
@@ -322,40 +320,6 @@ public class ExpertIteration
 						);
 				
 				final FeatureSetExpander featureSetExpander = new CorrelationBasedExpander();
-				
-				// Create matrices to track empirically-duplicate features
-				// 	First index: feature set index (indexes into array)
-				//	Second index: feature index i (indexes into list)
-				//	Stored value: BitSet of all features j such that, empirically, i <=> j
-				final List<BitSet>[] featureEquivalences;
-				if (trainingParams.handleDuplicateFeatures)
-				{
-					featureEquivalences = new List[featureSets.length];
-					for (int p = 0; p < featureSets.length; ++p)
-					{
-						if (featureSets[p] != null)
-						{
-							final int numFeatures = featureSets[p].getNumFeatures();
-							featureEquivalences[p] = new ArrayList<BitSet>(numFeatures);
-							
-							// Start out with bitsets that assumes that all features imply each other
-							for (int i = 0; i < numFeatures; ++i)
-							{
-								final BitSet bitset = new BitSet(numFeatures);
-								for (int j = 0; j < numFeatures; ++j)
-								{
-									bitset.set(0, numFeatures);
-								}
-								
-								featureEquivalences[p].add(bitset);
-							}
-						}
-					}
-				}
-				else
-				{
-					featureEquivalences = null;
-				}
 				
 				// create our value function
 				final Heuristics valueFunction = prepareValueFunction();
@@ -472,21 +436,6 @@ public class ExpertIteration
 									
 									expandedFeatureSets[0] = expandedFeatureSet;
 									expandedFeatureSet.init(game, supportedPlayers, null);
-									
-									if (featureEquivalences != null)
-									{
-										final int newFeatureIndex = expandedFeatureSet.getNumFeatures() - 1;
-										for (final BitSet bitset : featureEquivalences[0])
-										{
-											// At first, every existing feature should assume that it implies the new feature
-											bitset.set(newFeatureIndex);
-										}
-										
-										// And the new feature should assume that it implies all the old ones
-										final BitSet newBitset = new BitSet(expandedFeatureSet.getNumFeatures());
-										newBitset.set(0, expandedFeatureSet.getNumFeatures());
-										featureEquivalences[0].add(newBitset);
-									}
 								}
 								else
 								{
@@ -533,24 +482,12 @@ public class ExpertIteration
 										expandedFeatureSets[p] = expandedFeatureSet;
 										expandedFeatureSet.init(game, new int[]{p}, null);
 										
-										if (featureEquivalences != null)
+										// Add new entries for lifetime and average activity
+										while (featureActiveRatios[p].size() < expandedFeatureSet.getNumSpatialFeatures())
 										{
-											final int newFeatureIndex = expandedFeatureSet.getNumFeatures() - 1;
-											for (final BitSet bitset : featureEquivalences[p])
-											{
-												// At first, every existing feature should assume that it implies the new feature
-												bitset.set(newFeatureIndex);
-											}
-											
-											// And the new feature should assume that it implies all the old ones
-											final BitSet newBitset = new BitSet(expandedFeatureSet.getNumFeatures());
-											newBitset.set(0, expandedFeatureSet.getNumFeatures());
-											featureEquivalences[p].add(newBitset);
+											featureActiveRatios[p].add(0.0);
+											featureLifetimes[p].add(0L);
 										}
-										
-										// Add new entry for lifetime and average activity
-										featureActiveRatios[p].add(0.0);
-										featureLifetimes[p].add(0L);
 									}
 									else
 									{
@@ -628,7 +565,7 @@ public class ExpertIteration
 						expert.selectAction
 						(
 							game, 
-							new Context(context), 
+							expert.copyContext(context), 
 							agentsParams.thinkingTime,
 							agentsParams.iterationLimit,
 							agentsParams.depthLimit
@@ -724,6 +661,9 @@ public class ExpertIteration
 							
 							for (final TIntArrayList featureVector : sparseFeatureVectors)
 							{
+								// Following code expects the indices in the sparse feature vector to be sorted
+								featureVector.sort();
+								
 								// Increase lifetime of all features by 1
 								featureLifetimes[mover].transformValues((final long l) -> {return l + 1L;});
 								
@@ -898,54 +838,12 @@ public class ExpertIteration
 //									}
 //									System.out.println("---------------------------------------------------");
 									
-									final FVector scaledErrors = errors.copy();
-									if (trainingParams.handleDuplicateFeatures)
-									{
-										// Scale every error by the number of active features
-										for (int i = 0; i < scaledErrors.dim(); ++i)
-										{
-											final int numActiveFeatures = sparseFeatureVectors.get(i).size();
-											if (numActiveFeatures > 0)
-												scaledErrors.set(i, scaledErrors.get(i) / numActiveFeatures);
-										}
-									}
-									
 									final FVector ceGradients = cePolicy.computeParamGradients
 										(
-											scaledErrors,
+											errors,
 											sparseFeatureVectors,
 											p
 										);
-									
-									if (featureEquivalences != null)
-									{
-										// First update feature equivalences
-										for (final TIntArrayList sparseFeatureVector : sparseFeatureVectors)
-										{
-											final BitSet bitset = new BitSet();
-											for (int i = 0; i < sparseFeatureVector.size(); ++i)
-											{
-												bitset.set(sparseFeatureVector.getQuick(i));
-											}
-											
-											for (int i = 0; i < sparseFeatureVector.size(); ++i)
-											{
-												final int activeFeature = sparseFeatureVector.getQuick(i);
-												final BitSet impliedFeatures = featureEquivalences[featureSetIdx].get(activeFeature);
-												impliedFeatures.and(bitset);	// only keep all the features that are really still active
-											}
-										}
-										
-										// Scale down gradients for features that have empirical duplicates
-//										for (int i = 0; i < ceGradients.dim(); ++i)
-//										{
-//											if (ceGradients.get(i) != 0.f)
-//											{
-//												final BitSet impliedFeatures = featureEquivalences[featureSetIdx].get(i);
-//												ceGradients.set(i, ceGradients.get(i) / impliedFeatures.cardinality());
-//											}
-//										}
-									}
 									
 									FVector valueGradients = null;
 									if (valueFunction != null && p > 0)
@@ -1595,13 +1493,13 @@ public class ExpertIteration
 							linearFunction = 
 									new BoostedLinearFunction
 									(
-										new FVector(featureSets[0].getNumFeatures()),
+										new FVector(featureSets[0].getNumSpatialFeatures()),
 										linearFunctions[0]
 									);
 						}
 						else
 						{
-							linearFunction = new LinearFunction(new FVector(featureSets[p].getNumFeatures()));
+							linearFunction = new LinearFunction(new FVector(featureSets[p].getNumSpatialFeatures()));
 						}
 
 						logLine(logWriter, "starting with new 0-weights linear function for Cross-Entropy");
@@ -1695,7 +1593,7 @@ public class ExpertIteration
 							linearFunction = 
 									new BoostedLinearFunction
 									(
-										new FVector(featureSets[p].getNumFeatures()),
+										new FVector(featureSets[p].getNumSpatialFeatures()),
 										crossEntropyFunctions[p]
 									);
 							logLine(logWriter, "starting with new 0-weights linear function for TSPG");
@@ -1771,7 +1669,7 @@ public class ExpertIteration
 					if (currentPolicyWeightsCEEFilenames[p] == null)
 					{
 						// create new linear function
-						linearFunction = new LinearFunction(new FVector(featureSets[p].getNumFeatures()));
+						linearFunction = new LinearFunction(new FVector(featureSets[p].getNumSpatialFeatures()));
 						logLine(logWriter, "starting with new 0-weights linear function for Cross-Entropy Exploration");
 					}
 					else
@@ -1843,7 +1741,7 @@ public class ExpertIteration
 						try
 						{
 							final String descr = FileHandling.loadTextContentsFromFile(agentsParams.bestAgentsDataDir + "/BestHeuristics.txt");
-							valueFunction = (Heuristics)language.compiler.Compiler.compileObject
+							valueFunction = (Heuristics)compiler.Compiler.compileObject
 											(
 												descr, 
 												"metadata.ai.heuristics.Heuristics",
@@ -1859,7 +1757,7 @@ public class ExpertIteration
 					else
 					{
 						// copy value function from game metadata
-						valueFunction = game.metadata().ai().heuristics();
+						valueFunction = Heuristics.copy(game.metadata().ai().heuristics());
 						valueFunction.init(game);
 						logLine(logWriter, "starting with new initial value function from .lud metadata");
 					}
@@ -1871,7 +1769,7 @@ public class ExpertIteration
 					{
 						final String descr = FileHandling.loadTextContentsFromFile(
 								outParams.outDir.getAbsolutePath() + File.separator + currentValueFunctionFilename);
-						valueFunction = (Heuristics)language.compiler.Compiler.compileObject
+						valueFunction = (Heuristics)compiler.Compiler.compileObject
 										(
 											descr, 
 											"metadata.ai.heuristics.Heuristics",
@@ -1906,9 +1804,9 @@ public class ExpertIteration
 				
 				if (trainingParams.sharedFeatureSet)
 				{
-					featureSets = new FeatureSet[1];
+					featureSets = new BaseFeatureSet[1];
 					
-					final FeatureSet featureSet;
+					final BaseFeatureSet featureSet;
 					currentFeatureSetFilenames[0] = getFilenameLastCheckpoint("FeatureSet_P" + 0, "fs");
 					lastCheckpoint = 
 							Math.min
@@ -1922,15 +1820,15 @@ public class ExpertIteration
 					{
 						// create new Feature Set
 						final AtomicFeatureGenerator atomicFeatures = new AtomicFeatureGenerator(game, 2, 4);
-						featureSet = new FeatureSet(atomicFeatures.getFeatures());
+						featureSet = new PropFeatureSet(atomicFeatures.getFeatures());
 						newlyCreated.add(0);
 						logLine(logWriter, "starting with new initial feature set for Player " + 0);
-						logLine(logWriter, "num atomic features = " + featureSet.getNumFeatures());
+						logLine(logWriter, "num atomic features = " + featureSet.getNumSpatialFeatures());
 					}
 					else
 					{
 						// load feature set from file
-						featureSet = new FeatureSet(outParams.outDir.getAbsolutePath() + File.separator + currentFeatureSetFilenames[0]);
+						featureSet = new PropFeatureSet(outParams.outDir.getAbsolutePath() + File.separator + currentFeatureSetFilenames[0]);
 						logLine
 						(
 							logWriter, 
@@ -1940,7 +1838,7 @@ public class ExpertIteration
 						);
 					}
 
-					if (featureSet.getNumFeatures() == 0)
+					if (featureSet.getNumSpatialFeatures() == 0)
 					{
 						System.err.println("ERROR: Feature Set has 0 features!");
 						logLine(logWriter, "Training with 0 features makes no sense, interrupting experiment.");
@@ -1958,11 +1856,11 @@ public class ExpertIteration
 				}
 				else
 				{
-					featureSets = new FeatureSet[numPlayers + 1];
+					featureSets = new BaseFeatureSet[numPlayers + 1];
 					
 					for (int p = 1; p <= numPlayers; ++p)
 					{
-						final FeatureSet featureSet;
+						final BaseFeatureSet featureSet;
 						
 						currentFeatureSetFilenames[p] = getFilenameLastCheckpoint("FeatureSet_P" + p, "fs");
 						lastCheckpoint = 
@@ -1977,15 +1875,15 @@ public class ExpertIteration
 						{
 							// create new Feature Set
 							final AtomicFeatureGenerator atomicFeatures = new AtomicFeatureGenerator(game, 2, 4);
-							featureSet = new FeatureSet(atomicFeatures.getFeatures());
+							featureSet = new PropFeatureSet(atomicFeatures.getFeatures());
 							newlyCreated.add(p);
 							logLine(logWriter, "starting with new initial feature set for Player " + p);
-							logLine(logWriter, "num atomic features = " + featureSet.getNumFeatures());
+							logLine(logWriter, "num atomic features = " + featureSet.getNumSpatialFeatures());
 						}
 						else
 						{
 							// load feature set from file
-							featureSet = new FeatureSet(outParams.outDir.getAbsolutePath() + File.separator + currentFeatureSetFilenames[p]);
+							featureSet = new PropFeatureSet(outParams.outDir.getAbsolutePath() + File.separator + currentFeatureSetFilenames[p]);
 							logLine
 							(
 								logWriter, 
@@ -1995,7 +1893,7 @@ public class ExpertIteration
 							);
 						}
 						
-						if (featureSet.getNumFeatures() == 0)
+						if (featureSet.getNumSpatialFeatures() == 0)
 						{
 							System.err.println("ERROR: Feature Set has 0 features!");
 							logLine(logWriter, "Training with 0 features makes no sense, interrupting experiment.");
@@ -2018,7 +1916,7 @@ public class ExpertIteration
 					if (trainingParams.sharedFeatureSet)
 					{
 						frequencies = new long[1][][];
-						final int numAtomicFeatures = featureSets[0].getNumFeatures();
+						final int numAtomicFeatures = featureSets[0].getNumSpatialFeatures();
 						frequencies[0] = new long[numAtomicFeatures][numAtomicFeatures];
 					}
 					else
@@ -2026,7 +1924,7 @@ public class ExpertIteration
 						frequencies = new long[numPlayers + 1][][];
 						for (int p = 1; p <= numPlayers; ++p)
 						{
-							final int numAtomicFeatures = featureSets[p].getNumFeatures();
+							final int numAtomicFeatures = featureSets[p].getNumSpatialFeatures();
 							frequencies[p] = new long[numAtomicFeatures][numAtomicFeatures];
 						}
 					}
@@ -2096,7 +1994,7 @@ public class ExpertIteration
 						
 						final TIntHashSet featuresToRemove = new TIntHashSet();
 						final BaseFeatureSet featureSet = featureSets[p];
-						final int numAtomicFeatures = featureSet.getNumFeatures();
+						final int numAtomicFeatures = featureSet.getNumSpatialFeatures();
 						
 						for (int i = 0; i < numAtomicFeatures; ++i)
 						{
@@ -2121,8 +2019,8 @@ public class ExpertIteration
 								if (soloCount == frequencies[p][i][j] && soloCount == frequencies[p][j][j])
 								{
 									// should remove the most complex of i and j
-									final Feature firstFeature = featureSet.features()[i];
-									final Feature secondFeature = featureSet.features()[j];
+									final SpatialFeature firstFeature = featureSet.spatialFeatures()[i];
+									final SpatialFeature secondFeature = featureSet.spatialFeatures()[j];
 									final Pattern a = firstFeature.pattern();
 									final Pattern b = secondFeature.pattern();
 									
@@ -2178,13 +2076,13 @@ public class ExpertIteration
 						}
 						
 						// create new feature set
-						final List<Feature> keepFeatures = new ArrayList<Feature>();
+						final List<SpatialFeature> keepFeatures = new ArrayList<SpatialFeature>();
 						for (int i = 0; i < numAtomicFeatures; ++i)
 						{
 							if (!featuresToRemove.contains(i))
-								keepFeatures.add(featureSet.features()[i]);
+								keepFeatures.add(featureSet.spatialFeatures()[i]);
 						}
-						final FeatureSet newFeatureSet = new FeatureSet(keepFeatures);
+						final BaseFeatureSet newFeatureSet = new PropFeatureSet(keepFeatures);
 						
 						final int[] supportedPlayers;
 						if (p == 0)
@@ -2204,7 +2102,7 @@ public class ExpertIteration
 						featureSets[p] = newFeatureSet;
 						
 						logLine(logWriter, "Finished pruning atomic feature set for Player " + p);
-						logLine(logWriter, "Num atomic features after pruning = " + newFeatureSet.getNumFeatures());
+						logLine(logWriter, "Num atomic features after pruning = " + newFeatureSet.getNumSpatialFeatures());
 					}
 				}
 				
@@ -2713,10 +2611,6 @@ public class ExpertIteration
 				.help("If true, we train a single shared feature set for all players (and boosted weights per player)")
 				.withType(OptionTypes.Boolean));
 		argParse.addOption(new ArgOption()
-				.withNames("--handle-duplicate-features")
-				.help("If true, we divide gradients of empirically-duplicate features by number of duplicates")
-				.withType(OptionTypes.Boolean));
-		argParse.addOption(new ArgOption()
 				.withNames("--playout-features-epsilon")
 				.help("Epsilon for epsilon greedy feature-based playouts")
 				.withDefault(Double.valueOf(0.0))
@@ -2730,10 +2624,6 @@ public class ExpertIteration
 				.withNumVals(1)
 				.withType(OptionTypes.Int));
 		
-		argParse.addOption(new ArgOption()
-				.withNames("--no-prune-init-features")
-				.help("If true, we will keep full atomic feature set and not prune anything.")
-				.withType(OptionTypes.Boolean));
 		argParse.addOption(new ArgOption()
 				.withNames("--prune-init-features-threshold")
 				.help("Will only consider pruning features if they have been active at least this many times.")
@@ -2837,12 +2727,10 @@ public class ExpertIteration
 		exIt.objectiveParams.handleAliasing = argParse.getValueBool("--handle-aliasing");
 		exIt.objectiveParams.weightDecayLambda = argParse.getValueDouble("--weight-decay-lambda");
 		exIt.trainingParams.sharedFeatureSet = argParse.getValueBool("--shared-feature-set");
-		exIt.trainingParams.handleDuplicateFeatures = argParse.getValueBool("--handle-duplicate-features");
 		exIt.agentsParams.playoutFeaturesEpsilon = argParse.getValueDouble("--playout-features-epsilon");
 		
 		exIt.agentsParams.maxNumBiasedPlayoutActions = argParse.getValueInt("--max-num-biased-playout-actions");
 		
-		exIt.featureDiscoveryParams.noPruneInitFeatures = argParse.getValueBool("--no-prune-init-features");
 		exIt.featureDiscoveryParams.pruneInitFeaturesThreshold = argParse.getValueInt("--prune-init-features-threshold");
 		exIt.featureDiscoveryParams.numPruningGames = argParse.getValueInt("--num-pruning-games");
 		exIt.featureDiscoveryParams.maxNumPruningSeconds = argParse.getValueInt("--max-pruning-seconds");

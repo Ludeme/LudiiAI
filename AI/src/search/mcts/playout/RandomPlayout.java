@@ -3,9 +3,9 @@ package search.mcts.playout;
 import java.util.concurrent.ThreadLocalRandom;
 
 import game.Game;
+import other.context.Context;
+import other.trial.Trial;
 import search.mcts.MCTS;
-import util.Context;
-import util.Trial;
 
 /**
  * A completely random Play-out strategy (selects actions according

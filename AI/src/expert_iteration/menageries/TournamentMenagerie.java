@@ -12,7 +12,7 @@ import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import metadata.ai.features.Features;
 import metadata.ai.heuristics.Heuristics;
-import util.Context;
+import other.context.Context;
 import utils.AIUtils;
 
 /**

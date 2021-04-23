@@ -5,8 +5,8 @@ import java.io.PrintWriter;
 import expert_iteration.ExItExperience;
 import expert_iteration.params.ObjectiveParams;
 import features.feature_sets.BaseFeatureSet;
-import features.features.Feature;
-import features.instances.FeatureInstance;
+import features.spatial.SpatialFeature;
+import features.spatial.instances.FeatureInstance;
 import game.Game;
 import gnu.trove.list.array.TDoubleArrayList;
 import policies.softmax.SoftmaxPolicy;
@@ -92,7 +92,7 @@ public interface FeatureSetExpander
 		public final FeatureInstance b;
 
 		/** Feature obtained by combining the two instances */
-		protected final Feature combinedFeature;
+		protected final SpatialFeature combinedFeature;
 
 		/** Cached hash code */
 		private int cachedHash = Integer.MIN_VALUE;
@@ -118,40 +118,40 @@ public interface FeatureSetExpander
 
 			if (a.feature().featureSetIndex() < b.feature().featureSetIndex())
 			{
-				combinedFeature = Feature.combineFeatures(game, a, b);
+				combinedFeature = SpatialFeature.combineFeatures(game, a, b);
 			}
 			else if (b.feature().featureSetIndex() < a.feature().featureSetIndex())
 			{
-				combinedFeature = Feature.combineFeatures(game, b, a);
+				combinedFeature = SpatialFeature.combineFeatures(game, b, a);
 			}
 			else
 			{
 				if (a.reflection() > b.reflection())
 				{
-					combinedFeature = Feature.combineFeatures(game, a, b);
+					combinedFeature = SpatialFeature.combineFeatures(game, a, b);
 				}
 				else if (b.reflection() > a.reflection())
 				{
-					combinedFeature = Feature.combineFeatures(game, b, a);
+					combinedFeature = SpatialFeature.combineFeatures(game, b, a);
 				}
 				else
 				{
 					if (a.rotation() < b.rotation())
 					{
-						combinedFeature = Feature.combineFeatures(game, a, b);
+						combinedFeature = SpatialFeature.combineFeatures(game, a, b);
 					}
 					else if (b.rotation() < a.rotation())
 					{
-						combinedFeature = Feature.combineFeatures(game, b, a);
+						combinedFeature = SpatialFeature.combineFeatures(game, b, a);
 					}
 					else
 					{
 						if (a.anchorSite() < b.anchorSite())
-							combinedFeature = Feature.combineFeatures(game, a, b);
+							combinedFeature = SpatialFeature.combineFeatures(game, a, b);
 						else if (b.anchorSite() < a.anchorSite())
-							combinedFeature = Feature.combineFeatures(game, b, a);
+							combinedFeature = SpatialFeature.combineFeatures(game, b, a);
 						else
-							combinedFeature = Feature.combineFeatures(game, a, b);
+							combinedFeature = SpatialFeature.combineFeatures(game, a, b);
 					}
 				}
 			}

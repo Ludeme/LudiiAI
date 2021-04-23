@@ -1,9 +1,9 @@
 package search.mcts.finalmoveselection;
 
 import main.collections.FVector;
+import other.move.Move;
 import search.mcts.nodes.BaseNode;
 import search.mcts.utils.RegPolOptMCTS;
-import util.Move;
 
 /**
  * Act by sampling from pi-bar, as described in the

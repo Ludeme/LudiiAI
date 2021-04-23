@@ -8,7 +8,7 @@ import expert_iteration.params.AgentsParams;
 import game.Game;
 import metadata.ai.features.Features;
 import metadata.ai.heuristics.Heuristics;
-import util.Context;
+import other.context.Context;
 
 /**
  * Naive self-play menagerie: always uses the latest version of the trained agent,

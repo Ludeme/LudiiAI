@@ -78,7 +78,7 @@ public class AgentCheckpoint
 		{
 			try
 			{
-				final BestAgent bestAgent = (BestAgent) language.compiler.Compiler.compileObject
+				final BestAgent bestAgent = (BestAgent)compiler.Compiler.compileObject
 						(
 							FileHandling.loadTextContentsFromFile(agentsParams.bestAgentsDataDir + "/BestAgent.txt"), 
 							"metadata.ai.misc.BestAgent",
@@ -103,7 +103,7 @@ public class AgentCheckpoint
 				}
 				else if (bestAgent.agent().equals("Biased MCTS"))
 				{
-					final Features features = (Features) language.compiler.Compiler.compileObject
+					final Features features = (Features)compiler.Compiler.compileObject
 							(
 								FileHandling.loadTextContentsFromFile(agentsParams.bestAgentsDataDir + "/BestFeatures.txt"), 
 								"metadata.ai.features.Features",
@@ -114,7 +114,7 @@ public class AgentCheckpoint
 				}
 				else if (bestAgent.agent().equals("Biased MCTS (Uniform Playouts)"))
 				{
-					final Features features = (Features) language.compiler.Compiler.compileObject
+					final Features features = (Features)compiler.Compiler.compileObject
 							(
 								FileHandling.loadTextContentsFromFile(agentsParams.bestAgentsDataDir + "/BestFeatures.txt"), 
 								"metadata.ai.features.Features",
@@ -125,7 +125,7 @@ public class AgentCheckpoint
 				}
 				else if (bestAgent.agent().equals("Biased MCTS (RegPolOpt)"))
 				{
-					final Features features = (Features) language.compiler.Compiler.compileObject
+					final Features features = (Features)compiler.Compiler.compileObject
 							(
 								FileHandling.loadTextContentsFromFile(agentsParams.bestAgentsDataDir + "/BestFeatures.txt"), 
 								"metadata.ai.features.Features",
@@ -136,7 +136,7 @@ public class AgentCheckpoint
 				}
 				else if (bestAgent.agent().equals("Biased MCTS (RegPolOpt, Uniform Playouts)"))
 				{
-					final Features features = (Features) language.compiler.Compiler.compileObject
+					final Features features = (Features)compiler.Compiler.compileObject
 							(
 								FileHandling.loadTextContentsFromFile(agentsParams.bestAgentsDataDir + "/BestFeatures.txt"), 
 								"metadata.ai.features.Features",

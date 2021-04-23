@@ -3,9 +3,9 @@ package playout_move_selectors;
 import java.util.concurrent.ThreadLocalRandom;
 
 import main.collections.FastArrayList;
-import util.Context;
-import util.Move;
-import util.playout.PlayoutMoveSelector;
+import other.context.Context;
+import other.move.Move;
+import other.playout.PlayoutMoveSelector;
 
 /**
  * Epsilon-greedy wrapper around a Playout Move Selector

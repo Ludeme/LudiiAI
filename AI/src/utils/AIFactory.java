@@ -22,6 +22,7 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import game.Game;
+import other.AI;
 import policies.GreedyPolicy;
 import policies.softmax.SoftmaxPolicy;
 import search.flat.FlatMonteCarlo;
@@ -36,7 +37,6 @@ import search.mcts.selection.UCB1;
 import search.mcts.selection.UCB1GRAVE;
 import search.minimax.AlphaBetaSearch;
 import search.minimax.BRSPlus;
-import util.AI;
 
 /**
  * Can create AI agents based on strings / files
@@ -143,10 +143,10 @@ public class AIFactory
 		}
 		
 		if (string.equalsIgnoreCase("Biased MCTS"))
-			return MCTS.createBiasedMCTS(true);
+			return MCTS.createBiasedMCTS(0.0);
 		
 		if (string.equalsIgnoreCase("Biased MCTS (Uniform Playouts)") || string.equalsIgnoreCase("MCTS (Biased Selection)"))
-			return MCTS.createBiasedMCTS(false);
+			return MCTS.createBiasedMCTS(1.0);
 		
 		// try to interpret the given string as a resource or some other 
 		// kind of file
@@ -364,11 +364,11 @@ public class AIFactory
 		}
 		else if (algName.equalsIgnoreCase("Biased MCTS"))
 		{
-			return MCTS.createBiasedMCTS(true);
+			return MCTS.createBiasedMCTS(0.0);
 		}
 		else if (algName.equalsIgnoreCase("Biased MCTS (Uniform Playouts)") || algName.equalsIgnoreCase("MCTS (Biased Selection)"))
 		{
-			return MCTS.createBiasedMCTS(false);
+			return MCTS.createBiasedMCTS(1.0);
 		}
 		else if (algName.equalsIgnoreCase("Alpha-Beta") || algName.equalsIgnoreCase("AlphaBeta"))
 		{

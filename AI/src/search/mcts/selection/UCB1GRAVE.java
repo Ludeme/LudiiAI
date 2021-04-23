@@ -2,12 +2,12 @@ package search.mcts.selection;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import other.move.Move;
 import search.mcts.MCTS;
 import search.mcts.MCTS.MoveKey;
 import search.mcts.backpropagation.Backpropagation;
 import search.mcts.nodes.BaseNode;
 import search.mcts.nodes.BaseNode.NodeStatistics;
-import util.Move;
 
 /**
  * A UCB1 variant of Generalized Rapid Action Value Estimation (GRAVE).

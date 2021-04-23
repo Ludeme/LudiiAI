@@ -3,9 +3,9 @@ package search.pns;
 import java.util.Arrays;
 
 import main.collections.FastArrayList;
+import other.context.Context;
+import other.move.Move;
 import search.pns.ProofNumberSearch.ProofGoals;
-import util.Context;
-import util.Move;
 
 /**
  * Node for search trees in PNS

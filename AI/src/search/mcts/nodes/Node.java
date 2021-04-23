@@ -2,9 +2,9 @@ package search.mcts.nodes;
 
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.context.Context;
+import other.move.Move;
 import search.mcts.MCTS;
-import util.Context;
-import util.Move;
 
 /**
  * Nodes for "standard" MCTS search trees, for deterministic games.
@@ -152,7 +152,7 @@ public final class Node extends BaseNode
     public Context playoutContext()
     {
     	// need to copy context
-    	return new Context(context);
+    	return mcts.copyContext(context);
     }
     
     @Override
@@ -182,7 +182,7 @@ public final class Node extends BaseNode
     	if (children[moveIdx] == null)
     	{
     		// need to copy context
-        	newContext = new Context(context);
+        	newContext = mcts.copyContext(context);
         	newContext.game().apply(newContext, legalMoves[moveIdx]);
     	}
     	else

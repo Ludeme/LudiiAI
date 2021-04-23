@@ -10,10 +10,10 @@ import org.apache.commons.rng.core.RandomProviderDefaultState;
 import game.Game;
 import main.collections.FastArrayList;
 import main.collections.StringPair;
-import util.AI;
-import util.Context;
-import util.Move;
-import util.Trial;
+import other.AI;
+import other.context.Context;
+import other.move.Move;
+import other.trial.Trial;
 
 /**
  * Some general utility methods for AI
@@ -117,6 +117,7 @@ public class AIUtils
 			}
 			
 			utilities[p] = rankToUtil(rank, numPlayers);
+			assert (utilities[p] >= -1.0 && utilities[p] <= 1.0);
 		}
 		
 //		System.out.println("ranking = " + Arrays.toString(ranking));
@@ -197,12 +198,14 @@ public class AIUtils
 				
 				// Heuristic terms
 				key.startsWith("CentreProximity") ||
+				key.startsWith("ComponentValues") ||
 				key.startsWith("CornerProximity") ||
 				key.startsWith("CurrentMoverHeuristic") ||
 				key.startsWith("Intercept") ||
 				key.startsWith("LineCompletionHeuristic") ||
 				key.startsWith("Material") ||
 				key.startsWith("MobilitySimple") ||
+				key.startsWith("NullHeuristic") ||
 				key.startsWith("OpponentPieceProximity") ||
 				key.startsWith("OwnRegionsCount") ||
 				key.startsWith("PlayerRegionsProximity") ||

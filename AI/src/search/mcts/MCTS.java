@@ -13,6 +13,10 @@ import game.types.state.GameType;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import metadata.ai.features.Features;
+import other.AI;
+import other.context.Context;
+import other.move.Move;
+import other.trial.Trial;
 import policies.softmax.SoftmaxFromMetadata;
 import policies.softmax.SoftmaxPolicy;
 import search.mcts.backpropagation.Backpropagation;
@@ -30,10 +34,6 @@ import search.mcts.selection.AG0Selection;
 import search.mcts.selection.SearchRegPolOpt;
 import search.mcts.selection.SelectionStrategy;
 import search.mcts.selection.UCB1;
-import util.AI;
-import util.Context;
-import util.Move;
-import util.Trial;
 import utils.AIUtils;
 
 /**
@@ -212,22 +212,22 @@ public class MCTS extends ExpertPolicy
 	/**
 	 * Creates a Biased MCTS agent which attempts to use features and
 	 * weights embedded in a game's metadata file.
-	 * @param biasPlayouts
+	 * @param epsilon Epsilon for epsilon-greedy feature-based playouts. 1 for uniform, 0 for always softmax
 	 * @return Biased MCTS agent
 	 */
-	public static MCTS createBiasedMCTS(final boolean biasPlayouts)
+	public static MCTS createBiasedMCTS(final double epsilon)
 	{
-		final SoftmaxPolicy softmax = new SoftmaxFromMetadata();
+		final SoftmaxPolicy softmax = new SoftmaxFromMetadata(epsilon);
 		final MCTS mcts = 
 				new MCTS
 				(
 					new AG0Selection(), 
-					biasPlayouts ? softmax : new RandomPlayout(200),
+					epsilon < 1.0 ? softmax : new RandomPlayout(200),
 					new RobustChild()
 				);
 		
 		mcts.setLearnedSelectionPolicy(softmax);
-		mcts.friendlyName = biasPlayouts ? "Biased MCTS" : "Biased MCTS (Uniform Playouts)";
+		mcts.friendlyName = epsilon < 1.0 ? "Biased MCTS" : "Biased MCTS (Uniform Playouts)";
 		
 		return mcts;
 	}
@@ -236,7 +236,7 @@ public class MCTS extends ExpertPolicy
 	 * Creates a Biased MCTS agent using given collection of features
 	 * 
 	 * @param features
-	 * @param epsilon Epsilon for epsilon-greedy feature-based playouts. 0 for uniform, 1 for always softmax
+	 * @param epsilon Epsilon for epsilon-greedy feature-based playouts. 1 for uniform, 0 for always softmax
 	 * @return Biased MCTS agent
 	 */
 	public static MCTS createBiasedMCTS(final Features features, final double epsilon)
@@ -553,7 +553,7 @@ public class MCTS extends ExpertPolicy
     	final Context context
     )
 	{
-		if ((currentGameFlags & GameType.Stochastic) == 0L)
+		if ((currentGameFlags & GameType.Stochastic) == 0L || wantsCheatRNG())
 		{
 			//System.out.println("creating node with parent move: " + parentMove);
 			return new Node(mcts, parent, parentMove, parentMoveWithoutConseq, context);

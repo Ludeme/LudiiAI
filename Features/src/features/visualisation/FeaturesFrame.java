@@ -21,8 +21,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.filechooser.FileFilter;
 
-import features.feature_sets.FeatureSet;
-import features.features.Feature;
+import features.feature_sets.BaseFeatureSet;
+import features.spatial.SpatialFeature;
 import game.Game;
 
 /**
@@ -57,7 +57,7 @@ public class FeaturesFrame extends JFrame
 	 */
 	public FeaturesFrame
 	(
-		final FeatureSet featureSet, 
+		final BaseFeatureSet featureSet, 
 		final int player, 
 		final Game game,
 		final String featureSetName
@@ -79,7 +79,7 @@ public class FeaturesFrame extends JFrame
 		}
 		
 		// create panel to contain images
-		final int numFeatures = featureSet.getNumFeatures();
+		final int numFeatures = featureSet.getNumSpatialFeatures();
 		final int numCols = 5;
 		final int numRows = (int) Math.ceil((double) numFeatures / numCols);
 		imagePanel = new JPanel(new GridLayout(numRows, numCols));
@@ -161,14 +161,14 @@ public class FeaturesFrame extends JFrame
 	 */
 	private static void createImages
 	(
-		final FeatureSet featureSet, 
+		final BaseFeatureSet featureSet, 
 		final int player, 
 		final Game game,
 		final File outDir,
 		final String featureSetName
 	)
 	{
-		final Feature[] features = featureSet.features();
+		final SpatialFeature[] features = featureSet.spatialFeatures();
 		
 		try 
 		(

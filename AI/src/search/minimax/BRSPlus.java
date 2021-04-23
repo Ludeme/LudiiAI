@@ -19,10 +19,10 @@ import metadata.ai.heuristics.Heuristics;
 import metadata.ai.heuristics.terms.HeuristicTerm;
 import metadata.ai.heuristics.terms.Material;
 import metadata.ai.heuristics.terms.MobilitySimple;
-import util.Context;
-import util.Move;
-import util.Trial;
-import util.state.State;
+import other.context.Context;
+import other.move.Move;
+import other.state.State;
+import other.trial.Trial;
 import utils.AIUtils;
 import utils.data_structures.transposition_table.TranspositionTable;
 import utils.data_structures.transposition_table.TranspositionTable.ABTTData;
@@ -128,7 +128,7 @@ public class BRSPlus extends ExpertPolicy
 	{
 		friendlyName = "BRS+";
 		final String heuristicsStr = FileHandling.loadTextContentsFromFile(heuristicsFilepath);
-		this.heuristicValueFunction = (Heuristics)language.compiler.Compiler.compileObject
+		this.heuristicValueFunction = (Heuristics)compiler.Compiler.compileObject
 										(
 											heuristicsStr, 
 											"metadata.ai.heuristics.Heuristics",
@@ -250,7 +250,7 @@ public class BRSPlus extends ExpertPolicy
 			
 			for (int i = 0; i < numRootMoves; ++i)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				final Move m = sortedRootMoves.get(i);
 				game.apply(copyContext, m);
 				final float value = alphaBeta(copyContext, searchDepth - 1, alpha, beta, maximisingPlayer, stopTime, 1);
@@ -484,7 +484,7 @@ public class BRSPlus extends ExpertPolicy
 			
 			for (int i = 0; i < numLegalMoves; ++i)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				final Move m = legalMoves.get(i);
 				game.apply(copyContext, m);
 				final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime, 1);
@@ -542,7 +542,7 @@ public class BRSPlus extends ExpertPolicy
 			{
 				for (int i = 0; i < numLegalMoves; ++i)
 				{
-					final Context copyContext = new Context(context);
+					final Context copyContext = copyContext(context);
 					final Move m = legalMoves.get(i);
 					game.apply(copyContext, m);
 					final float value = alphaBeta(copyContext, depth - 1, alpha, beta, maximisingPlayer, stopTime, regMoveCounter + 1);
@@ -571,7 +571,7 @@ public class BRSPlus extends ExpertPolicy
 			
 			if (allowSpecialMove & !cutOff)
 			{
-				final Context copyContext = new Context(context);
+				final Context copyContext = copyContext(context);
 				
 				final Move m;
 				if (tableData != null)		// We have move ordering from TT
@@ -661,7 +661,7 @@ public class BRSPlus extends ExpertPolicy
 			final metadata.ai.Ai aiMetadata = game.metadata().ai();
 			if (aiMetadata != null && aiMetadata.heuristics() != null)
 			{
-				heuristicValueFunction = aiMetadata.heuristics();
+				heuristicValueFunction = Heuristics.copy(aiMetadata.heuristics());
 			}
 			else
 			{

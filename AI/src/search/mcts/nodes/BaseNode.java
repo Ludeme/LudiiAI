@@ -9,13 +9,13 @@ import game.Game;
 import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.context.Context;
+import other.move.Move;
+import other.state.State;
 import policies.softmax.SoftmaxPolicy;
 import search.mcts.MCTS;
 import search.mcts.MCTS.MoveKey;
 import search.mcts.backpropagation.Backpropagation;
-import util.Context;
-import util.Move;
-import util.state.State;
 
 /**
  * Abstract base class for nodes in MCTS search trees.

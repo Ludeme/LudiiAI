@@ -6,14 +6,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Set;
 
 import expert_iteration.ExItExperience;
 import expert_iteration.params.ObjectiveParams;
-import features.FeatureUtils;
 import features.feature_sets.BaseFeatureSet;
-import features.features.Feature;
-import features.instances.FeatureInstance;
+import features.spatial.FeatureUtils;
+import features.spatial.SpatialFeature;
+import features.spatial.instances.FeatureInstance;
 import game.Game;
 import gnu.trove.impl.Constants;
 import gnu.trove.list.array.TDoubleArrayList;
@@ -22,8 +23,8 @@ import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.move.Move;
 import policies.softmax.SoftmaxPolicy;
-import util.Move;
 import utils.experiments.InterruptableExperiment;
 
 /**
@@ -143,14 +144,14 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 
 		// Create a Hash Set of features already in Feature Set; we won't
 		// have to consider combinations that are already in
-		final Set<Feature> existingFeatures = 
-				new HashSet<Feature>
+		final Set<SpatialFeature> existingFeatures = 
+				new HashSet<SpatialFeature>
 				(
-					(int) Math.ceil(featureSet.getNumFeatures() / 0.75f), 
+					(int) Math.ceil(featureSet.getNumSpatialFeatures() / 0.75f), 
 					0.75f
 				);
 
-		for (final Feature feature : featureSet.features())
+		for (final SpatialFeature feature : featureSet.spatialFeatures())
 		{
 			existingFeatures.add(feature);
 		}
@@ -275,6 +276,13 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 				// Start out by keeping all feature instances that have already been marked as having to be
 				// preserved, and discarding those that have already been discarded before
 				final List<FeatureInstance> instancesToKeep = new ArrayList<FeatureInstance>();
+				
+				// For every instance in activeInstances, also keep track of a combined-self version
+				final List<CombinableFeatureInstancePair> activeInstancesCombinedSelfs = 
+						new ArrayList<CombinableFeatureInstancePair>();
+				// And same for instancesToKeep
+				final List<CombinableFeatureInstancePair> instancesToKeepCombinedSelfs = 
+						new ArrayList<CombinableFeatureInstancePair>();
 
 				for (int i = 0; i < activeInstances.size(); /**/)
 				{
@@ -282,6 +290,7 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 					final CombinableFeatureInstancePair combinedSelf = new CombinableFeatureInstancePair(game, instance, instance);
 					if (preservedInstances.contains(combinedSelf))
 					{
+						instancesToKeepCombinedSelfs.add(combinedSelf);
 						instancesToKeep.add(instance);
 						activeInstances.remove(i);
 					}
@@ -291,16 +300,26 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 					}
 					else
 					{
+						activeInstancesCombinedSelfs.add(combinedSelf);
 						++i;
 					}
 				}
 
 				// This action is allowed to pick at most this many extra instances
-				int numInstancesAllowedThisAction = Math.min(Math.min(Math.max(
-						5, 		// TODO make this a param
-						featureDiscoveryMaxNumFeatureInstances - preservedInstances.size() / (moves.size() - a)),
-						featureDiscoveryMaxNumFeatureInstances - preservedInstances.size()),
-						activeInstances.size());
+				int numInstancesAllowedThisAction = 
+						Math.min
+						(
+							Math.min
+							(
+								Math.max
+								(
+									5, 		// TODO make this a param
+									featureDiscoveryMaxNumFeatureInstances - preservedInstances.size() / (moves.size() - a)
+								),
+								featureDiscoveryMaxNumFeatureInstances - preservedInstances.size()
+							),
+							activeInstances.size()
+						);
 
 				// Create distribution over active instances using softmax over logits inversely proportional to
 				// how commonly the instances' features are active
@@ -315,18 +334,19 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 				{
 					// Sample another instance
 					final int sampledIdx = distr.sampleFromDistribution();
+					final CombinableFeatureInstancePair combinedSelf = activeInstancesCombinedSelfs.get(sampledIdx);
 					final FeatureInstance keepInstance = activeInstances.get(sampledIdx);
 					instancesToKeep.add(keepInstance);
-					final CombinableFeatureInstancePair combinedSelf = new CombinableFeatureInstancePair(game, keepInstance, keepInstance);
+					instancesToKeepCombinedSelfs.add(combinedSelf);
 					preservedInstances.add(combinedSelf);		// Remember to preserve this one forever now
 					distr.updateSoftmaxInvalidate(sampledIdx);	// Don't want to pick the same index again
 					--numInstancesAllowedThisAction;
 				}
 
 				// Mark all the instances that haven't been marked as preserved yet as discarded instead
-				for (final FeatureInstance instance : activeInstances)
+				for (int i = 0; i < activeInstances.size(); ++i)
 				{
-					final CombinableFeatureInstancePair combinedSelf = new CombinableFeatureInstancePair(game, instance, instance);
+					final CombinableFeatureInstancePair combinedSelf = activeInstancesCombinedSelfs.get(i);
 					if (!preservedInstances.contains(combinedSelf))
 						discardedInstances.add(combinedSelf);
 				}
@@ -343,8 +363,7 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 					final FeatureInstance instanceI = instancesToKeep.get(i);
 
 					// increment entries on ''main diagonals''
-					final CombinableFeatureInstancePair combinedSelf = 
-							new CombinableFeatureInstancePair(game, instanceI, instanceI);
+					final CombinableFeatureInstancePair combinedSelf = instancesToKeepCombinedSelfs.get(i);
 
 					if (observedCasePairs.add(combinedSelf))
 					{
@@ -381,15 +400,31 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 			return null;
 		}
 
-		// construct all possible pairs and scores
-		// as we go, keep track of best score and index at which we can find it
-		final List<ScoredFeatureInstancePair> scoredPairs = new ArrayList<ScoredFeatureInstancePair>(featurePairActivations.size());
-		double bestScore = Double.NEGATIVE_INFINITY;
-		int bestPairIdx = -1;
+		// Construct all possible pairs and scores; one priority queue for proactive features,
+		// and one for reactive features
+		//
+		// In priority queues, we want highest scores at the head, hence "reversed" implementation
+		// of comparator
+		final Comparator<ScoredFeatureInstancePair> comparator = new Comparator<ScoredFeatureInstancePair>()
+		{
+			@Override
+			public int compare(final ScoredFeatureInstancePair o1, final ScoredFeatureInstancePair o2)
+			{
+				if (o1.score < o2.score)
+					return 1;
+				else if (o1.score > o2.score)
+					return -1;
+				else
+					return 0;
+			}
+		};
+		
+		final PriorityQueue<ScoredFeatureInstancePair> proactivePairs = new PriorityQueue<ScoredFeatureInstancePair>(comparator);
+		final PriorityQueue<ScoredFeatureInstancePair> reactivePairs = new PriorityQueue<ScoredFeatureInstancePair>(comparator);
 
 		for (final CombinableFeatureInstancePair pair : featurePairActivations.keySet())
 		{
-			if (! pair.a.equals(pair.b))	// Only interested in combinations of different instances
+			if (!pair.a.equals(pair.b))	// Only interested in combinations of different instances
 			{
 				final int pairActs = featurePairActivations.get(pair);
 				if (pairActs == numCases || pairActs < 4)
@@ -476,57 +511,40 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 					continue;
 				}
 
-				scoredPairs.add(new ScoredFeatureInstancePair(pair, score));
-				if (score > bestScore)
-				{
-					bestScore = score;
-					bestPairIdx = scoredPairs.size() - 1;
-				}
+				if (pair.combinedFeature.isReactive())
+					reactivePairs.add(new ScoredFeatureInstancePair(pair, score));
+				else
+					proactivePairs.add(new ScoredFeatureInstancePair(pair, score));
 			}
 		}
 
-//		scoredPairs.sort(new Comparator<ScoredPair>(){
-//
-//			@Override
-//			public int compare(ScoredPair o1, ScoredPair o2)
-//			{
-//				if (o1.score > o2.score)
-//					return 1;
-//				else if (o1.score < o2.score)
-//					return -1;
-//				else
-//					return 0;
-//			}
-//
-//		});
-//
 //		System.out.println("--------------------------------------------------------");
 //		for (int i = 0; i < scoredPairs.size(); ++i)
 //		{
-//			final ScoredPair pair = scoredPairs.get(i);
+//			final ScoredFeatureInstancePair pair = scoredPairs.get(i);
 //
 //			final int actsI = 
 //					featurePairActivations.get
 //					(
-//						new CombinableFeatureInstancePair(g, pair.pair.a, pair.pair.a)
+//						new CombinableFeatureInstancePair(game, pair.pair.a, pair.pair.a)
 //					);
 //
 //			final int actsJ = 
 //					featurePairActivations.get
 //					(
-//						new CombinableFeatureInstancePair(g, pair.pair.b, pair.pair.b)
+//						new CombinableFeatureInstancePair(game, pair.pair.b, pair.pair.b)
 //					);
 //
 //			final int pairActs = 
 //					featurePairActivations.get
 //					(
-//						new CombinableFeatureInstancePair(g, pair.pair.a, pair.pair.b)
+//						new CombinableFeatureInstancePair(game, pair.pair.a, pair.pair.b)
 //					);
 //
 //			final double pairErrorSum = 
 //					errorSums.get
 //					(
-//						new CombinableFeatureInstancePair(g, pair.pair.a, pair.pair.b)
+//						new CombinableFeatureInstancePair(game, pair.pair.a, pair.pair.b)
 //					);
 //
 //			final double errorCorr = 
@@ -538,6 +556,18 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 //							Math.sqrt(numCases * sumSquaredErrors - sumErrors * sumErrors)
 //						)
 //					);
+//			// Fisher's r-to-z transformation
+//			final double errorCorrZ = 0.5 * Math.log((1.0 + errorCorr) / (1.0 - errorCorr));
+//			// Standard deviation of the z
+//			final double stdErrorCorrZ = Math.sqrt(1.0 / (numCases - 3));
+//			// Lower bound of 90% confidence interval on z
+//			final double lbErrorCorrZ = errorCorrZ - 1.64 * stdErrorCorrZ;
+//			// Transform lower bound on z back to r
+//			final double lbErrorCorr = (Math.exp(2.0 * lbErrorCorrZ) - 1.0) / (Math.exp(2.0 * lbErrorCorrZ) + 1.0);
+//			// Upper bound of 90% confidence interval on z
+//			final double ubErrorCorrZ = errorCorrZ + 1.64 * stdErrorCorrZ;
+//			// Transform upper bound on z back to r
+//			final double ubErrorCorr = (Math.exp(2.0 * ubErrorCorrZ) - 1.0) / (Math.exp(2.0 * ubErrorCorrZ) + 1.0);
 //
 //			final double featureCorrI = 
 //					(
@@ -561,6 +591,8 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 //
 //			System.out.println("score = " + pair.score);
 //			System.out.println("correlation with errors = " + errorCorr);
+//			System.out.println("lower bound correlation with errors = " + lbErrorCorr);
+//			System.out.println("upper bound correlation with errors = " + ubErrorCorr);
 //			System.out.println("correlation with first constituent = " + featureCorrI);
 //			System.out.println("correlation with second constituent = " + featureCorrJ);
 //			System.out.println("active feature A = " + pair.pair.a.feature());
@@ -578,15 +610,18 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 //		}
 //		System.out.println("--------------------------------------------------------");
 
-		// keep trying to generate an expanded (by one) feature set, until
-		// we succeed (almost always this should be on the very first iteration)
-		while (scoredPairs.size() > 0)
+		// Keep trying to add a proactive feature, until we succeed (almost always 
+		// this should be on the very first iteration)
+		BaseFeatureSet currFeatureSet = featureSet;
+		
+		// TODO pretty much duplicate code of block below, should refactor into method
+		while (!proactivePairs.isEmpty())
 		{
 			// extract pair of feature instances we want to try combining
-			final ScoredFeatureInstancePair bestPair = scoredPairs.remove(bestPairIdx);
+			final ScoredFeatureInstancePair bestPair = proactivePairs.poll();
 
 			final BaseFeatureSet newFeatureSet = 
-					featureSet.createExpandedFeatureSet(game, bestPair.pair.a, bestPair.pair.b);
+					currFeatureSet.createExpandedFeatureSet(game, bestPair.pair.combinedFeature);
 
 			if (newFeatureSet != null)
 			{
@@ -657,8 +692,8 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 							)
 						);
 
-				experiment.logLine(logWriter, "New feature added!");
-				experiment.logLine(logWriter, "new feature = " + newFeatureSet.features()[newFeatureSet.getNumFeatures() - 1]);
+				experiment.logLine(logWriter, "New proactive feature added!");
+				experiment.logLine(logWriter, "new feature = " + newFeatureSet.spatialFeatures()[newFeatureSet.getNumSpatialFeatures() - 1]);
 				experiment.logLine(logWriter, "active feature A = " + bestPair.pair.a.feature());
 				experiment.logLine(logWriter, "rot A = " + bestPair.pair.a.rotation());
 				experiment.logLine(logWriter, "ref A = " + bestPair.pair.a.reflection());
@@ -677,26 +712,116 @@ public class CorrelationBasedExpander implements FeatureSetExpander
 				experiment.logLine(logWriter, "observed first constituent " + actsI + " times");
 				experiment.logLine(logWriter, "observed second constituent " + actsJ + " times");
 
-				return newFeatureSet;
+				currFeatureSet = newFeatureSet;
+				break;
 			}
+		}
+		
+		// Keep trying to add a proactive feature, until we succeed (almost always 
+		// this should be on the very first iteration)
+		while (!reactivePairs.isEmpty())
+		{
+			// extract pair of feature instances we want to try combining
+			final ScoredFeatureInstancePair bestPair = reactivePairs.poll();
 
-			// if we reach this point, it means we failed to create an
-			// expanded feature set with our top-score pair.
-			// so, we should search again for the next best pair
-			bestScore = Double.NEGATIVE_INFINITY;
-			bestPairIdx = -1;
+			final BaseFeatureSet newFeatureSet = 
+					currFeatureSet.createExpandedFeatureSet(game, bestPair.pair.combinedFeature);
 
-			for (int i = 0; i < scoredPairs.size(); ++i)
+			if (newFeatureSet != null)
 			{
-				if (scoredPairs.get(i).score > bestScore)
-				{
-					bestScore = scoredPairs.get(i).score;
-					bestPairIdx = i;
-				}
+				final int actsI = 
+						featurePairActivations.get
+						(
+							new CombinableFeatureInstancePair(game, bestPair.pair.a, bestPair.pair.a)
+						);
+
+				final int actsJ = 
+						featurePairActivations.get
+						(
+							new CombinableFeatureInstancePair(game, bestPair.pair.b, bestPair.pair.b)
+						);
+
+				final int pairActs = 
+						featurePairActivations.get
+						(
+							new CombinableFeatureInstancePair(game, bestPair.pair.a, bestPair.pair.b)
+						);
+
+				final double pairErrorSum = 
+						errorSums.get
+						(
+							new CombinableFeatureInstancePair(game, bestPair.pair.a, bestPair.pair.b)
+						);
+
+				final double errorCorr = 
+						(
+							(numCases * pairErrorSum - pairActs * sumErrors) 
+							/ 
+							(
+								Math.sqrt(numCases * pairActs - pairActs * pairActs) * 
+								Math.sqrt(numCases * sumSquaredErrors - sumErrors * sumErrors)
+							)
+						);
+				
+				// Fisher's r-to-z transformation
+				final double errorCorrZ = 0.5 * Math.log((1.0 + errorCorr) / (1.0 - errorCorr));
+				// Standard deviation of the z
+				final double stdErrorCorrZ = Math.sqrt(1.0 / (numCases - 3));
+				// Lower bound of 90% confidence interval on z
+				final double lbErrorCorrZ = errorCorrZ - 1.64 * stdErrorCorrZ;
+				// Transform lower bound on z back to r
+				final double lbErrorCorr = (Math.exp(2.0 * lbErrorCorrZ) - 1.0) / (Math.exp(2.0 * lbErrorCorrZ) + 1.0);
+				// Upper bound of 90% confidence interval on z
+				final double ubErrorCorrZ = errorCorrZ + 1.64 * stdErrorCorrZ;
+				// Transform upper bound on z back to r
+				final double ubErrorCorr = (Math.exp(2.0 * ubErrorCorrZ) - 1.0) / (Math.exp(2.0 * ubErrorCorrZ) + 1.0);
+
+				final double featureCorrI = 
+						(
+							(numCases * pairActs - pairActs * actsI) 
+							/ 
+							(
+								Math.sqrt(numCases * pairActs - pairActs * pairActs) * 
+								Math.sqrt(numCases * actsI - actsI * actsI)
+							)
+						);
+
+				final double featureCorrJ = 
+						(
+							(numCases * pairActs - pairActs * actsJ) 
+							/ 
+							(
+								Math.sqrt(numCases * pairActs - pairActs * pairActs) * 
+								Math.sqrt(numCases * actsJ - actsJ * actsJ)
+							)
+						);
+
+				experiment.logLine(logWriter, "New proactive feature added!");
+				experiment.logLine(logWriter, "new feature = " + newFeatureSet.spatialFeatures()[newFeatureSet.getNumSpatialFeatures() - 1]);
+				experiment.logLine(logWriter, "active feature A = " + bestPair.pair.a.feature());
+				experiment.logLine(logWriter, "rot A = " + bestPair.pair.a.rotation());
+				experiment.logLine(logWriter, "ref A = " + bestPair.pair.a.reflection());
+				experiment.logLine(logWriter, "anchor A = " + bestPair.pair.a.anchorSite());
+				experiment.logLine(logWriter, "active feature B = " + bestPair.pair.b.feature());
+				experiment.logLine(logWriter, "rot B = " + bestPair.pair.b.rotation());
+				experiment.logLine(logWriter, "ref B = " + bestPair.pair.b.reflection());
+				experiment.logLine(logWriter, "anchor B = " + bestPair.pair.b.anchorSite());
+				experiment.logLine(logWriter, "score = " + bestPair.score);
+				experiment.logLine(logWriter, "correlation with errors = " + errorCorr);
+				experiment.logLine(logWriter, "lower bound correlation with errors = " + lbErrorCorr);
+				experiment.logLine(logWriter, "upper bound correlation with errors = " + ubErrorCorr);
+				experiment.logLine(logWriter, "correlation with first constituent = " + featureCorrI);
+				experiment.logLine(logWriter, "correlation with second constituent = " + featureCorrJ);
+				experiment.logLine(logWriter, "observed pair of instances " + pairActs + " times");
+				experiment.logLine(logWriter, "observed first constituent " + actsI + " times");
+				experiment.logLine(logWriter, "observed second constituent " + actsJ + " times");
+
+				currFeatureSet = newFeatureSet;
+				break;
 			}
 		}
 
-		return null;
+		return currFeatureSet;
 	}
 
 }

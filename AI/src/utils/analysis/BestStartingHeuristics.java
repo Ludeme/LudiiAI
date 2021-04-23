@@ -42,12 +42,13 @@ public class BestStartingHeuristics
 			for (String line; (line = reader.readLine()) != null; /**/)
 			{
 				final String[] lineSplit = line.split(Pattern.quote(","));
-				entries.put(lineSplit[0], new Entry
+				entries.put(lineSplit[2], new Entry
 						(
 							lineSplit[0],
 							lineSplit[1],
-							Float.parseFloat(lineSplit[2]),
-							Long.parseLong(lineSplit[3])
+							lineSplit[2],
+							lineSplit[3],
+							Float.parseFloat(lineSplit[4])
 						));
 			}
 		} 
@@ -97,8 +98,14 @@ public class BestStartingHeuristics
 	public static class Entry
 	{
 		
-		/** Name of game for which we stored data (cleaned for filepath-friendliness) */
-		private final String cleanGameName;
+		/** Name of game for which we stored data */
+		private final String gameName;
+		
+		/** Name of ruleset for which we stored data */
+		private final String rulesetName;
+		
+		/** Name of game+ruleset for which we stored data */
+		private final String gameRulesetName;
 		
 		/** String description of top starting heuristic */
 		private final String topHeuristic;
@@ -106,39 +113,52 @@ public class BestStartingHeuristics
 		/** Win percentage of the Alpha-Beta agent with the top starting heuristic */
 		private final float topScore;
 		
-		/** 
-		 * Time (in milliseconds since midnight, January 1, 1970 UTC) when we last 
-		 * analysed Alpha-Beta agents for this game 
-		 */
-		private final long lastEvaluated;
-		
 		/**
 		 * Constructor
 		 * @param cleanGameName
+		 * @param rulesetName
+		 * @param gameRulesetName
 		 * @param topHeuristic
 		 * @param topScore
-		 * @param lastEvaluated
 		 */
 		protected Entry
 		(
-			final String cleanGameName, 
+			final String gameName, 
+			final String rulesetName,
+			final String gameRulesetName,
 			final String topHeuristic, 
-			final float topScore, 
-			final long lastEvaluated
+			final float topScore
 		)
 		{
-			this.cleanGameName = cleanGameName;
+			this.gameName = gameName;
+			this.rulesetName = rulesetName;
+			this.gameRulesetName = gameRulesetName;
 			this.topHeuristic = topHeuristic;
 			this.topScore = topScore;
-			this.lastEvaluated = lastEvaluated;
 		}
 		
 		/**
-		 * @return Name of game for which we stored data (cleaned for filepath-friendliness)
+		 * @return Name of game for which we stored data
 		 */
-		public String cleanGameName()
+		public String gameName()
 		{
-			return cleanGameName;
+			return gameName;
+		}
+		
+		/**
+		 * @return Name of ruleset for which we stored data
+		 */
+		public String rulesetName()
+		{
+			return rulesetName;
+		}
+		
+		/**
+		 * @return Name of game+ruleset for which we stored data
+		 */
+		public String gameRulesetName()
+		{
+			return gameRulesetName;
 		}
 		
 		/**
@@ -155,15 +175,6 @@ public class BestStartingHeuristics
 		public float topScore()
 		{
 			return topScore;
-		}
-		
-		/**
-		 * @return Time (in milliseconds since midnight, January 1, 1970 UTC) when we last 
-		 * 	analysed Alpha-Beta agents for this game 
-		 */
-		public long lastEvaluated()
-		{
-			return lastEvaluated;
 		}
 		
 	}

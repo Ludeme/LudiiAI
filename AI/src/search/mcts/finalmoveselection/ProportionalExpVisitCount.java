@@ -1,8 +1,8 @@
 package search.mcts.finalmoveselection;
 
 import main.collections.FVector;
+import other.move.Move;
 import search.mcts.nodes.BaseNode;
-import util.Move;
 
 /**
  * Selects moves proportionally to exponentiated visit counts,

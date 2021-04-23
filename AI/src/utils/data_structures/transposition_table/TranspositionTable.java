@@ -1,6 +1,6 @@
 package utils.data_structures.transposition_table;
 
-import util.Move;
+import other.move.Move;
 
 /**
  * Transposition table for Alpha-Beta search.

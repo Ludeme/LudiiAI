@@ -17,12 +17,12 @@ import main.Constants;
 import main.FileHandling;
 import main.math.MathRoutines;
 import metrics.support.zhang_shasha.Tree;
-import topology.TopologyElement;
-import util.GameLoader;
-import util.Move;
-import util.action.Action;
-import util.action.others.ActionPropose;
-import util.action.others.ActionVote;
+import other.GameLoader;
+import other.action.Action;
+import other.action.others.ActionPropose;
+import other.action.others.ActionVote;
+import other.move.Move;
+import other.topology.TopologyElement;
 import utils.data_structures.ludeme_trees.LudemeTreeUtils;
 
 /**

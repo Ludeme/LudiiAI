@@ -9,14 +9,14 @@ import game.equipment.container.Container;
 import gnu.trove.list.array.TIntArrayList;
 import main.Constants;
 import main.collections.FastArrayList;
-import util.Context;
-import util.Move;
-import util.TempContext;
-import util.Trial;
-import util.state.State;
-import util.state.containerStackingState.BaseContainerStateStacking;
-import util.state.containerState.ContainerState;
-import util.state.owned.Owned;
+import other.context.Context;
+import other.context.TempContext;
+import other.move.Move;
+import other.state.State;
+import other.state.container.ContainerState;
+import other.state.owned.Owned;
+import other.state.stacking.BaseContainerStateStacking;
+import other.trial.Trial;
 
 /**
  * Wrapper around a Ludii context (trial + state), with various extra methods required for

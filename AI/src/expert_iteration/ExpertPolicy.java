@@ -2,8 +2,8 @@ package expert_iteration;
 
 import main.collections.FVector;
 import main.collections.FastArrayList;
-import util.AI;
-import util.Move;
+import other.AI;
+import other.move.Move;
 
 /**
  * Abstract class for policies that can serve as experts in Expert Iteration

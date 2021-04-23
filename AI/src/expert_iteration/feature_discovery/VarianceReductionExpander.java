@@ -10,10 +10,10 @@ import java.util.Set;
 
 import expert_iteration.ExItExperience;
 import expert_iteration.params.ObjectiveParams;
-import features.FeatureUtils;
 import features.feature_sets.BaseFeatureSet;
-import features.features.Feature;
-import features.instances.FeatureInstance;
+import features.spatial.FeatureUtils;
+import features.spatial.SpatialFeature;
+import features.spatial.instances.FeatureInstance;
 import game.Game;
 import gnu.trove.impl.Constants;
 import gnu.trove.list.array.TDoubleArrayList;
@@ -22,8 +22,8 @@ import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import main.collections.FVector;
 import main.collections.FastArrayList;
+import other.move.Move;
 import policies.softmax.SoftmaxPolicy;
-import util.Move;
 import utils.experiments.InterruptableExperiment;
 
 /**
@@ -97,14 +97,14 @@ public class VarianceReductionExpander implements FeatureSetExpander
 
 		// Create a Hash Set of features already in Feature Set; we won't
 		// have to consider combinations that are already in
-		final Set<Feature> existingFeatures = 
-				new HashSet<Feature>
+		final Set<SpatialFeature> existingFeatures = 
+				new HashSet<SpatialFeature>
 				(
-					(int) Math.ceil(featureSet.getNumFeatures() / 0.75f), 
+					(int) Math.ceil(featureSet.getNumSpatialFeatures() / 0.75f), 
 					0.75f
 				);
 
-		for (final Feature feature : featureSet.features())
+		for (final SpatialFeature feature : featureSet.spatialFeatures())
 		{
 			existingFeatures.add(feature);
 		}
@@ -447,7 +447,7 @@ public class VarianceReductionExpander implements FeatureSetExpander
 			final ScoredFeatureInstancePair bestPair = scoredPairs.remove(bestPairIdx);
 
 			final BaseFeatureSet newFeatureSet = 
-					featureSet.createExpandedFeatureSet(game, bestPair.pair.a, bestPair.pair.b);
+					featureSet.createExpandedFeatureSet(game, bestPair.pair.combinedFeature);
 
 			if (newFeatureSet != null)
 			{
@@ -524,7 +524,7 @@ public class VarianceReductionExpander implements FeatureSetExpander
 				final double varReduction = varComplete - (varWithPair + varWithoutPair);
 				
 				experiment.logLine(logWriter, "New feature added!");
-				experiment.logLine(logWriter, "new feature = " + newFeatureSet.features()[newFeatureSet.getNumFeatures() - 1]);
+				experiment.logLine(logWriter, "new feature = " + newFeatureSet.spatialFeatures()[newFeatureSet.getNumSpatialFeatures() - 1]);
 				experiment.logLine(logWriter, "active feature A = " + bestPair.pair.a.feature());
 				experiment.logLine(logWriter, "rot A = " + bestPair.pair.a.rotation());
 				experiment.logLine(logWriter, "ref A = " + bestPair.pair.a.reflection());

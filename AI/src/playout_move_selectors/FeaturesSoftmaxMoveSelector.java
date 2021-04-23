@@ -6,9 +6,9 @@ import features.feature_sets.BaseFeatureSet;
 import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import main.collections.FastArrayList;
-import util.Context;
-import util.Move;
-import util.playout.PlayoutMoveSelector;
+import other.context.Context;
+import other.move.Move;
+import other.playout.PlayoutMoveSelector;
 
 /**
  * PlayoutMoveSelector for playouts which uses a softmax over actions with logits

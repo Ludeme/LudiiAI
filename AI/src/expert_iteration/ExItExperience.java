@@ -4,9 +4,9 @@ import java.io.Serializable;
 
 import main.collections.FVector;
 import main.collections.FastArrayList;
-import util.Context;
-import util.Move;
-import util.state.State;
+import other.context.Context;
+import other.move.Move;
+import other.state.State;
 
 /**
  * A single sample of experience for Expert Iteration.

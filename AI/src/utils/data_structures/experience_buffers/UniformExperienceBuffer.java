@@ -14,7 +14,7 @@ import expert_iteration.ExItExperience;
 import expert_iteration.ExItExperience.ExItExperienceState;
 import game.Game;
 import game.equipment.container.Container;
-import util.state.containerState.ContainerState;
+import other.state.container.ContainerState;
 
 /**
  * A size-restricted, FIFO buffer to contain samples of experience.

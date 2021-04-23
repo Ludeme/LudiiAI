@@ -3,14 +3,14 @@ package features.generation;
 import java.util.ArrayList;
 import java.util.List;
 
-import features.elements.FeatureElement.ElementType;
+import features.spatial.elements.FeatureElement.ElementType;
 import game.Game;
 import game.equipment.component.Component;
 import game.util.directions.DirectionFacing;
 import game.util.directions.RelativeDirection;
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;
-import util.Context;
+import other.context.Context;
 
 /**
  * Utility methods for feature generation

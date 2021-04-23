@@ -2,8 +2,8 @@ package search.mcts.finalmoveselection;
 
 import org.json.JSONObject;
 
+import other.move.Move;
 import search.mcts.nodes.BaseNode;
-import util.Move;
 
 /**
  * Interface for different strategies of finally selecting the move to play in the real game
