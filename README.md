@@ -1,5 +1,9 @@
 <img align="right" src="./resources/ludii-logo-64x64.png">
 
+# Deprecated
+
+This repository is now deprecated; all AI source code for Ludii is included in the main open-source Ludii repo at https://github.com/Ludeme/Ludii.
+
 # Ludii AI Source Code
 
 [![license](https://img.shields.io/github/license/Ludeme/LudiiAI)](LICENSE)
