@@ -3,6 +3,7 @@ package search.mcts.selection;
 import java.util.concurrent.ThreadLocalRandom;
 
 import main.collections.FVector;
+import other.state.State;
 import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 
@@ -47,21 +48,23 @@ public final class AG0Selection implements SelectionStrategy
 	{
 		int bestIdx = -1;
         double bestValue = Double.NEGATIVE_INFINITY;
+        int numBestFound = 0;
+		
         final FVector distribution = current.learnedSelectionPolicy();
         final double parentSqrt = Math.sqrt(current.sumLegalChildVisits());
-        int numBestFound = 0;
-        
+
         final int numChildren = current.numLegalMoves();
-        final int mover = current.contextRef().state().mover();
+        final State state = current.contextRef().state();
+        final int moverAgent = state.playerToAgent(state.mover());
         final double unvisitedValueEstimate = 
-        		current.valueEstimateUnvisitedChildren(mover, current.contextRef().state());
-        
+        		current.valueEstimateUnvisitedChildren(moverAgent);
+
         for (int i = 0; i < numChildren; ++i)
         {
         	final BaseNode child = current.childForNthLegalMove(i);
         	final double exploit;
         	final int numVisits;
-        	
+
         	if (child == null)
         	{
         		exploit = unvisitedValueEstimate;
@@ -69,74 +72,27 @@ public final class AG0Selection implements SelectionStrategy
         	}
         	else
         	{
-        		exploit = child.averageScore(mover, current.contextRef().state());
-        		numVisits = child.numVisits();
+        		exploit = child.exploitationScore(moverAgent);
+        		numVisits = child.numVisits() + child.numVirtualVisits();
         	}
-        	
-            final float priorProb = distribution.get(i);
-            final double explore = (parentSqrt == 0.0) ? 1.0 : parentSqrt / (1.0 + numVisits);
-            
-            final double pucb1Value = 
-            		exploit + explorationConstant * priorProb * explore;
-            
-            if (pucb1Value > bestValue)
-            {
-                bestValue = pucb1Value;
-                bestIdx = i;
-                numBestFound = 1;
-            }
-            else if (pucb1Value == bestValue && 
-            		ThreadLocalRandom.current().nextInt() % ++numBestFound == 0)
-            {
-            	bestIdx = i;
-            }
+
+        	final float priorProb = distribution.get(i);
+        	final double explore = (parentSqrt == 0.0) ? 1.0 : parentSqrt / (1.0 + numVisits);
+
+        	final double pucb1Value = exploit + explorationConstant * priorProb * explore;
+
+        	if (pucb1Value > bestValue)
+        	{
+        		bestValue = pucb1Value;
+        		bestIdx = i;
+        		numBestFound = 1;
+        	}
+        	else if (pucb1Value == bestValue && ThreadLocalRandom.current().nextInt() % ++numBestFound == 0)
+        	{
+        		bestIdx = i;
+        	}
         }
-        
-//        if (bestIdx == -1)
-//        {
-//        	System.out.println("numChildren = " + numChildren);
-//        	System.out.println("unvisitedValueEstimate = " + unvisitedValueEstimate);
-//        	for (int i = 0; i < numChildren; ++i)
-//	        {
-//        		System.out.println("i = " + i);
-//	        	final BaseNode child = current.childForNthLegalMove(i);
-//	        	final double exploit;
-//	        	final int numVisits;
-//	        	
-//	        	if (child == null)
-//	        	{
-//	        		exploit = unvisitedValueEstimate;
-//	        		numVisits = 0;
-//	        	}
-//	        	else
-//	        	{
-//	        		exploit = child.averageScore(mover, current.contextRef().state());
-//	        		numVisits = child.numVisits();
-//	        	}
-//	        	
-//	            final float priorProb = distribution.get(i);
-//	            System.out.println("priorProb = " + priorProb);
-//	            final double explore = parentSqrt / (1.0 + numVisits);
-//	            System.out.println("explore = " + explore);
-//	            
-//	            final double pucb1Value = 
-//	            		exploit + explorationConstant * priorProb * explore;
-//	            System.out.println("pucb1Value = " + pucb1Value);
-//	            
-//	            if (pucb1Value > bestValue)
-//	            {
-//	                bestValue = pucb1Value;
-//	                bestIdx = i;
-//	                numBestFound = 1;
-//	            }
-//	            else if (pucb1Value == bestValue && 
-//	            		ThreadLocalRandom.current().nextInt() % ++numBestFound == 0)
-//	            {
-//	            	bestIdx = i;
-//	            }
-//	        }
-//        }
-        
+
         return bestIdx;
 	}
 	
@@ -144,6 +100,12 @@ public final class AG0Selection implements SelectionStrategy
 	
 	@Override
 	public int backpropFlags()
+	{
+		return 0;
+	}
+	
+	@Override
+	public int expansionFlags()
 	{
 		return 0;
 	}
@@ -160,14 +122,11 @@ public final class AG0Selection implements SelectionStrategy
 				
 				if (input.startsWith("explorationconstant="))
 				{
-					explorationConstant = Double.parseDouble(
-							input.substring("explorationconstant=".length()));
+					explorationConstant = Double.parseDouble(input.substring("explorationconstant=".length()));
 				}
 				else
 				{
-					System.err.println(
-							"AG0Selection ignores unknown customization: "
-							+ input);
+					System.err.println("AG0Selection ignores unknown customisation: " + input);
 				}
 			}
 		}

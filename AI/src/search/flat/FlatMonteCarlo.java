@@ -8,6 +8,7 @@ import game.Game;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import other.AI;
+import other.RankUtils;
 import other.context.Context;
 import other.model.Model;
 import other.move.Move;
@@ -118,7 +119,7 @@ public class FlatMonteCarlo extends AI
 			
 			numVisits[firstAction] += 1;
 			
-			final double[] utilities = AIUtils.utilities(copyContext);
+			final double[] utilities = RankUtils.utilities(copyContext);
 			sumScores[firstAction] += utilities[player];
 			
 			++numIterations;

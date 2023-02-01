@@ -217,8 +217,7 @@ public class RelativeFeatureElement extends FeatureElement
 		
 		final RelativeFeatureElement otherRel = (RelativeFeatureElement) other;
 		
-		return (generalisationResult.strictlyGeneralises && 
-				walk.equals(otherRel.walk()));
+		return (generalisationResult.strictlyGeneralises && walk.equals(otherRel.walk()));
 	}
 
 	@Override
@@ -254,7 +253,15 @@ public class RelativeFeatureElement extends FeatureElement
 	{
 		String str = type().label;
 		
-		if (type == ElementType.Item || type == ElementType.IsPos || type == ElementType.Connectivity)
+		if 
+		(
+			type == ElementType.Item || 
+			type == ElementType.IsPos || 
+			type == ElementType.Connectivity || 
+			type == ElementType.RegionProximity ||
+			type == ElementType.LineOfSightOrth ||
+			type == ElementType.LineOfSightDiag
+		)
 		{
 			str += itemIndex;
 		}

@@ -75,8 +75,10 @@ public final class RandomPlayout implements PlayoutStrategy
 			if (input.toLowerCase().startsWith("playoutturnlimit="))
 			{
 				playoutTurnLimit = 
-						Integer.parseInt(
-								input.substring("playoutturnlimit=".length()));
+						Integer.parseInt
+						(
+							input.substring("playoutturnlimit=".length())
+						);
 			}
 		}
 	}

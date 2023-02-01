@@ -6,8 +6,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 
+import features.FeatureVector;
+import features.WeightVector;
 import gnu.trove.list.array.TFloatArrayList;
-import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 
 /**
@@ -21,7 +22,7 @@ public class LinearFunction
 	//-------------------------------------------------------------------------
 	
 	/** Our vector of parameters / weights */
-	protected FVector theta;
+	protected WeightVector theta;
 	
 	/** Filepath for feature set corresponding to our parameters */
 	protected String featureSetFile = null;
@@ -33,7 +34,7 @@ public class LinearFunction
 	 * 
 	 * @param theta
 	 */
-	public LinearFunction(final FVector theta)
+	public LinearFunction(final WeightVector theta)
 	{
 		this.theta = theta;
 	}
@@ -41,28 +42,19 @@ public class LinearFunction
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * @param denseFeatures
-	 * @return Predicted value for a given feature vector (dense)
+	 * @param featureVector
+	 * @return Predicted value for a given feature vector
 	 */
-	public float predict(final FVector denseFeatures)
+	public float predict(final FeatureVector featureVector)
 	{
-		return effectiveParams().dot(denseFeatures);
-	}
-	
-	/**
-	 * @param sparseFeatures
-	 * @return Predicted value for a given feature vector (binary, sparse)
-	 */
-	public float predict(final TIntArrayList sparseFeatures)
-	{
-		return effectiveParams().dotSparse(sparseFeatures);
+		return effectiveParams().dot(featureVector);
 	}
 	
 	/**
 	 * @return Vector of effective parameters, used for making predictions. For this
 	 *         class, a reference to theta.
 	 */
-	public FVector effectiveParams()
+	public WeightVector effectiveParams()
 	{
 		return theta;
 	}
@@ -71,47 +63,9 @@ public class LinearFunction
 	 * @return Reference to parameters vector that we can train. For this class,
 	 *         a reference to theta.
 	 */
-	public FVector trainableParams()
+	public WeightVector trainableParams()
 	{
 		return theta;
-	}
-	
-	//-------------------------------------------------------------------------
-	
-	/**
-	 * Adjust our parameters theta using gradient descent
-	 * 
-	 * @param gradients
-	 * @param stepSize
-	 */
-	public void gradientDescent(final FVector gradients, final float stepSize)
-	{
-		trainableParams().addScaled(gradients, -stepSize);
-	}
-	
-	/**
-	 * Adjust our parameters theta using gradient descent and weight decay (L2 regularization)
-	 * 
-	 * @param gradients Gradients of unregularized objective (loss) w.r.t. our params
-	 * @param stepSize
-	 * @param weightDecayParam Equivalent to lambda param in L2 regularization (if L2 regularization
-	 * is described as (lambda / 2) * norm of params), or equivalent to (2 * lambda) (if L2
-	 * regularization is described as lambda * norm of params).
-	 */
-	public void gradientDescent
-	(
-		final FVector gradients, 
-		final float stepSize, 
-		final float weightDecayParam
-	)
-	{
-		// first regularize (no problem if we're directly modifying theta, has already
-		// been used to compute gradients anyway)
-		trainableParams().addScaled(trainableParams(), -stepSize * weightDecayParam);
-		
-		// and now we can finish with unregularized gradient descent on top of that
-		// (with precomputed gradients, important that that was done before modifying theta)
-		gradientDescent(gradients, stepSize);
 	}
 	
 	//-------------------------------------------------------------------------
@@ -120,7 +74,7 @@ public class LinearFunction
 	 * Replaces the linear function's param vector theta
 	 * @param newTheta
 	 */
-	public void setTheta(final FVector newTheta)
+	public void setTheta(final WeightVector newTheta)
 	{
 		theta = newTheta;
 	}
@@ -153,11 +107,11 @@ public class LinearFunction
 	 */
 	public void writeToFile(final String filepath, final String[] featureSetFiles)
 	{
-		try (PrintWriter writer = new PrintWriter(filepath, "UTF-8"))
+		try (final PrintWriter writer = new PrintWriter(filepath, "UTF-8"))
 		{
-			for (int i = 0; i < theta.dim(); ++i)
+			for (int i = 0; i < theta.allWeights().dim(); ++i)
 			{
-				writer.println(theta.get(i));
+				writer.println(theta.allWeights().get(i));
 			}
 			
 			for (final String fsf : featureSetFiles)
@@ -179,7 +133,7 @@ public class LinearFunction
 	{
 		try 
 		(
-			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(filepath), "UTF-8"))
+			final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(filepath), "UTF-8"))
 		)
 		{
 			final TFloatArrayList readFloats = new TFloatArrayList();
@@ -205,13 +159,14 @@ public class LinearFunction
 				floats[i] = readFloats.getQuick(i);
 			}
 			
-			final LinearFunction func = new LinearFunction(FVector.wrap(floats));
+			final LinearFunction func = new LinearFunction(new WeightVector(FVector.wrap(floats)));
 			func.setFeatureSetFile(featureSetFile);
 			
 			return func;
 		} 
-		catch (final IOException e) 
+		catch (final Exception e) 
 		{
+			System.err.println("exception while trying to load from filepath: " + filepath);
 			e.printStackTrace();
 		}
 		

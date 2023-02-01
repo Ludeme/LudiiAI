@@ -66,8 +66,6 @@ public final class LudiiAI extends AI
 				currentAgent = AIFactory.createAI("UCT");
 		}
 		
-		this.friendlyName = "Ludii (" + currentAgent.friendlyName + ")";
-		
 		if (!currentAgent.supportsGame(game))
 		{
 			System.err.println
@@ -75,9 +73,13 @@ public final class LudiiAI extends AI
 				"Warning! Default AI (" + currentAgent + ")"
 				+ " does not support game (" + game.name() + ")"
 			);
+			
+			currentAgent = AIFactory.createAI("UCT");
 		}
 		
 		assert(currentAgent.supportsGame(game));
+		
+		this.friendlyName = "Ludii (" + currentAgent.friendlyName() + ")";
 		
 		currentAgent.initAI(game, playerID);
 	}
@@ -121,6 +123,12 @@ public final class LudiiAI extends AI
 		super.setWantsInterrupt(val);
 		if (currentAgent != null)
 			currentAgent.setWantsInterrupt(val);
+	}
+	
+	@Override
+	public boolean usesFeatures(final Game game)
+	{
+		return AIFactory.fromMetadata(game).usesFeatures(game);
 	}
 	
 	//-------------------------------------------------------------------------

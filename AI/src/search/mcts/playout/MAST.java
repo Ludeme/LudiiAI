@@ -13,7 +13,7 @@ import playout_move_selectors.EpsilonGreedyWrapper;
 import search.mcts.MCTS;
 import search.mcts.MCTS.ActionStatistics;
 import search.mcts.MCTS.MoveKey;
-import search.mcts.backpropagation.Backpropagation;
+import search.mcts.backpropagation.BackpropagationStrategy;
 
 /**
  * Move-Average Sampling Technique (MAST) playout strategy (epsilon-greedy)
@@ -62,13 +62,16 @@ public class MAST implements PlayoutStrategy
 	{
 		final MASTMoveSelector mast = moveSelector.get();
 		mast.mcts = mcts;
-		return context.game().playout(context, null, 1.0, new EpsilonGreedyWrapper(mast, epsilon), 0, playoutTurnLimit, ThreadLocalRandom.current());
+		final Trial trial =
+				context.game().playout(context, null, 1.0, new EpsilonGreedyWrapper(mast, epsilon), -1, playoutTurnLimit, ThreadLocalRandom.current());
+		mast.mcts = null;
+		return trial;
 	}
 	
 	@Override
 	public int backpropFlags()
 	{
-		return Backpropagation.GLOBAL_ACTION_STATS;
+		return BackpropagationStrategy.GLOBAL_ACTION_STATS;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -85,7 +88,19 @@ public class MAST implements PlayoutStrategy
 	@Override
 	public void customise(final String[] inputs)
 	{
-		// TODO
+		for (int i = 1; i < inputs.length; ++i)
+		{
+			final String input = inputs[i];
+			
+			if (input.toLowerCase().startsWith("playoutturnlimit="))
+			{
+				playoutTurnLimit = 
+						Integer.parseInt
+						(
+							input.substring("playoutturnlimit=".length())
+						);
+			}
+		}
 	}
 	
 	/**

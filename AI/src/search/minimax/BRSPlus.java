@@ -3,13 +3,11 @@ package search.minimax;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import expert_iteration.ExItExperience;
-import expert_iteration.ExItExperience.ExItExperienceState;
-import expert_iteration.ExpertPolicy;
 import game.Game;
 import main.FileHandling;
 import main.collections.FVector;
@@ -19,11 +17,14 @@ import metadata.ai.heuristics.Heuristics;
 import metadata.ai.heuristics.terms.HeuristicTerm;
 import metadata.ai.heuristics.terms.Material;
 import metadata.ai.heuristics.terms.MobilitySimple;
+import other.RankUtils;
 import other.context.Context;
 import other.move.Move;
 import other.state.State;
 import other.trial.Trial;
-import utils.AIUtils;
+import training.expert_iteration.ExItExperience;
+import training.expert_iteration.ExItExperience.ExItExperienceState;
+import training.expert_iteration.ExpertPolicy;
 import utils.data_structures.transposition_table.TranspositionTable;
 import utils.data_structures.transposition_table.TranspositionTable.ABTTData;
 
@@ -231,8 +232,8 @@ public class BRSPlus extends ExpertPolicy
 		Move bestMoveCompleteSearch = sortedRootMoves.get(0);
 		
 		// For paranoid search, we can narrow alpha-beta window if some players already won/lost
-		rootAlphaInit = ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT;
-		rootBetaInit = ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT;
+		rootAlphaInit = ((float) RankUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT;
+		rootBetaInit = ((float) RankUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT;
 		
 		while (searchDepth < maxDepth)
 		{
@@ -418,7 +419,7 @@ public class BRSPlus extends ExpertPolicy
 		if (trial.over() || !context.active(maximisingPlayer))
 		{
 			// terminal node (at least for maximising player)
-			return (float) AIUtils.agentUtilities(context)[maximisingPlayer] * BETA_INIT;
+			return (float) RankUtils.agentUtilities(context)[maximisingPlayer] * BETA_INIT;
 		}
 		else if (depth == 0)
 		{
@@ -473,8 +474,8 @@ public class BRSPlus extends ExpertPolicy
 		final int numPlayers = game.players().count();
 		
 		// For paranoid search, we can maybe narrow alpha-beta window if some players already won/lost
-		alpha = Math.max(alpha, ((float) AIUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT);
-		beta = Math.min(beta, ((float) AIUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT);
+		alpha = Math.max(alpha, ((float) RankUtils.rankToUtil(context.computeNextLossRank(), numPlayers)) * BETA_INIT);
+		beta = Math.min(beta, ((float) RankUtils.rankToUtil(context.computeNextWinRank(), numPlayers)) * BETA_INIT);
 		
 		Move bestMove = legalMoves.get(0);
 		
@@ -754,7 +755,7 @@ public class BRSPlus extends ExpertPolicy
 	}
 	
 	@Override
-	public ExItExperience generateExItExperience()
+	public List<ExItExperience> generateExItExperiences()
 	{
 		final FastArrayList<Move> actions = new FastArrayList<Move>(currentRootMoves.size());
 		for (int i = 0; i < currentRootMoves.size(); ++i)
@@ -765,13 +766,18 @@ public class BRSPlus extends ExpertPolicy
     		actions.add(m);
 		}
 		
-    	return new ExItExperience
+    	final ExItExperience experience =
+    			new ExItExperience
     			(
+    				new Context(lastSearchedRootContext),
     				new ExItExperienceState(lastSearchedRootContext),
     				actions,
     				computeExpertPolicy(1.0),
-    				FVector.zeros(actions.size())
+    				FVector.zeros(actions.size()),
+    				1.f
     			);
+    	
+    	return Arrays.asList(experience);
 	}
 	
 	//-------------------------------------------------------------------------

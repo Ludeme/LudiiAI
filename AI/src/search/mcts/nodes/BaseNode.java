@@ -1,10 +1,12 @@
 package search.mcts.nodes;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
-import expert_iteration.ExItExperience;
-import expert_iteration.ExItExperience.ExItExperienceState;
 import game.Game;
 import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
@@ -12,10 +14,12 @@ import main.collections.FastArrayList;
 import other.context.Context;
 import other.move.Move;
 import other.state.State;
-import policies.softmax.SoftmaxPolicy;
+import policies.softmax.SoftmaxPolicyLinear;
 import search.mcts.MCTS;
 import search.mcts.MCTS.MoveKey;
-import search.mcts.backpropagation.Backpropagation;
+import search.mcts.backpropagation.BackpropagationStrategy;
+import training.expert_iteration.ExItExperience;
+import training.expert_iteration.ExItExperience.ExItExperienceState;
 
 /**
  * Abstract base class for nodes in MCTS search trees.
@@ -42,11 +46,23 @@ public abstract class BaseNode
 	/** Total number of times this node was visited. */
     protected int numVisits = 0;
     
+    /** Number of virtual visits to this node (for Tree Parallelisation) */
+    protected AtomicInteger numVirtualVisits = new AtomicInteger();
+    
     /** Total scores backpropagated into this node (one per player, 0 index unused). */
     protected final double[] totalScores;
     
+    /** Sums of squares of scores backpropagated into this node (one per player, 0 index unused). */
+    protected final double[] sumSquaredScores;
+    
+    /** Value estimates based on heuristic score function, normalised to appropriate range in [-1, 1]. Can be null. */
+    protected double[] heuristicValueEstimates;
+    
     /** Table of AMAF stats for GRAVE */
     protected final Map<MoveKey, NodeStatistics> graveStats;
+    
+    /** Lock for MCTS code that modifies/reads node data in ways that should be synchronised */
+    protected transient ReentrantLock nodeLock = new ReentrantLock();
 	
 	//-------------------------------------------------------------------------
 	
@@ -71,13 +87,15 @@ public abstract class BaseNode
 		this.parent = parent;
 		this.parentMove = parentMove;
 		this.parentMoveWithoutConseq = parentMoveWithoutConseq;
-		
+
 		totalScores = new double[game.players().count() + 1];
+		sumSquaredScores = new double[game.players().count() + 1];
+		heuristicValueEstimates = null;
 		
 		final int backpropFlags = mcts.backpropFlags();
 		
-		if ((backpropFlags & Backpropagation.GRAVE_STATS) != 0)
-			graveStats = new HashMap<MoveKey, NodeStatistics>();
+		if ((backpropFlags & BackpropagationStrategy.GRAVE_STATS) != 0)
+			graveStats = new ConcurrentHashMap<MoveKey, NodeStatistics>();
 		else
 			graveStats = null;
 	}
@@ -180,17 +198,54 @@ public abstract class BaseNode
 	 */
 	public abstract void updateContextRef();
 	
+	/**
+	 * Recursively clean any thread-local variables we may have (it
+	 * seems like GC struggles with them otherwise).
+	 */
+	public abstract void cleanThreadLocals();
+	
 	//-------------------------------------------------------------------------
 	
 	/**
-     * @param player Player index
-     * @param state
+     * @param agent Agent index
      * 
-     * @return Average score backpropagated into this node for player
+     * @return Expected score for given agent. Usually just the average backpropagated score
+     * 	(accounting for virtual losses). Subclasses may override to return better estimates
+     * 	(such as proven scores) if they have them.
      */
-    public double averageScore(final int player, final State state)
+    public double expectedScore(final int agent)
     {
-    	return (numVisits == 0) ? 0.0 : totalScores[state.playerToAgent(player)] / numVisits;
+    	return (numVisits == 0) ? 0.0 : (totalScores[agent] - numVirtualVisits.get()) / (numVisits + numVirtualVisits.get());
+    }
+    
+    /**
+     * @param agent Agent index
+     * 
+     * @return Exploitation score / term for given agent. Generally just expected score, but
+     * 	subclasses may return different values to account for pruning/solving/etc.
+     */
+    public double exploitationScore(final int agent)
+    {
+    	return expectedScore(agent);
+    }
+    
+    /**
+     * @param agent
+     * @return Is the value for given agent fully proven in this node?
+     */
+	@SuppressWarnings("static-method")
+    public boolean isValueProven(final int agent)
+    {
+    	return false;
+    }
+    
+    /**
+     * @return Array of heuristic value estimates: one per player. Array can be null if MCTS
+     * 	has no heuristics.
+     */
+    public double[] heuristicValueEstimates()
+    {
+    	return heuristicValueEstimates;
     }
     
     /**
@@ -199,6 +254,22 @@ public abstract class BaseNode
     public int numVisits()
     {
     	return numVisits;
+    }
+    
+    /**
+     * @return Number of virtual visits
+     */
+    public int numVirtualVisits()
+    {
+    	return numVirtualVisits.get();
+    }
+    
+    /**
+     * Adds one virtual visit to this node (will be subtracted again during backpropagation)
+     */
+    public void addVirtualVisit()
+    {
+    	numVirtualVisits.incrementAndGet();
     }
 	
 	/**
@@ -236,6 +307,16 @@ public abstract class BaseNode
 	}
 	
 	/**
+	 * Sets the array of heuristic value estimates for this node 
+	 * NOTE: (value estimates per player, not per child node).
+	 * @param heuristicValueEstimates
+	 */
+	public void setHeuristicValueEstimates(final double[] heuristicValueEstimates)
+	{
+		this.heuristicValueEstimates = heuristicValueEstimates;
+	}
+	
+	/**
      * @param player Player index
      * @return Total score (sum of scores) backpropagated into this node for player
      */
@@ -245,8 +326,17 @@ public abstract class BaseNode
     }
     
     /**
+     * @param player Player index
+     * @return Sum of squared scores backpropagated into this node for player. NOTE: also adds virtual losses.
+     */
+    public double sumSquaredScores(final int player)
+    {
+    	return sumSquaredScores[player] + numVirtualVisits.get();
+    }
+    
+    /**
      * Backpropagates result with vector of utilities
-     * @param utilities
+     * @param utilities The utilities.
      */
     public void update(final double[] utilities)
     {
@@ -254,16 +344,17 @@ public abstract class BaseNode
     	for (int p = 1; p < totalScores.length; ++p)
     	{
     		totalScores[p] += utilities[p];
+    		sumSquaredScores[p] += utilities[p] * utilities[p];
     	}
+    	numVirtualVisits.decrementAndGet();
     }
     
     /**
-     * @param player Player index
-     * @param state
+     * @param agent Agent index
      * 
      * @return Value estimate for unvisited children of this node
      */
-    public double valueEstimateUnvisitedChildren(final int player, final State state)
+    public double valueEstimateUnvisitedChildren(final int agent)
     {
     	switch (mcts.qInit())
 		{
@@ -280,7 +371,7 @@ public abstract class BaseNode
 			}
 			else
 			{
-				return averageScore(player, state);
+				return expectedScore(agent);
 			}
 		case WIN:
 			return 1.0;
@@ -516,7 +607,7 @@ public abstract class BaseNode
     {
     	// compute distribution using learned Play-out policy
 		final FVector distribution = 
-				((SoftmaxPolicy) mcts.playoutStrategy()).computeDistribution(
+				((SoftmaxPolicyLinear) mcts.playoutStrategy()).computeDistribution(
 						contextRef(), contextRef().game().moves(contextRef()).moves(), true);
 		
 		final int dim = distribution.dim();
@@ -547,12 +638,14 @@ public abstract class BaseNode
     //-------------------------------------------------------------------------
     
     /**
+     * @param weightVisitCount
      * @return A sample of experience for learning with Expert Iteration
      */
-    public ExItExperience generateExItExperience()
+    public ExItExperience generateExItExperience(final float weightVisitCount)
     {
     	final FastArrayList<Move> actions = new FastArrayList<Move>(numLegalMoves());
     	final float[] valueEstimates = new float[numLegalMoves()];
+    	final State state = deterministicContextRef().state();
     	
     	for (int i = 0; i < numLegalMoves(); ++i)
     	{
@@ -565,16 +658,71 @@ public abstract class BaseNode
     		if (child == null)
     			valueEstimates[i] = -1.f;
     		else
-    			valueEstimates[i] = (float) child.averageScore(deterministicContextRef().state().mover(), deterministicContextRef().state());
+    			valueEstimates[i] = (float) child.expectedScore(state.playerToAgent(state.mover()));
        	}
+    	
+    	FVector visitCountPolicy = computeVisitCountPolicy(1.0);
+    	final float min = visitCountPolicy.min();
+    	boolean allPruned = true;
+    	for (int i = 0; i < numLegalMoves(); ++i)
+    	{
+    		final BaseNode child = childForNthLegalMove(i);
+    		if (child != null && child instanceof ScoreBoundsNode)
+    		{
+    			if (((ScoreBoundsNode) child).isPruned())
+    				visitCountPolicy.set(i, min);
+    			else
+    				allPruned = false;
+    		}
+    		else
+    		{
+    			allPruned = false;
+    		}
+    	}
+    	
+    	if (allPruned)		// Special case; if EVERYTHING gets pruned, we prefer to stick to existing biases
+    		visitCountPolicy = computeVisitCountPolicy(1.0);
+    	else
+    		visitCountPolicy.normalise();
     	
     	return new ExItExperience
     			(
+    				new Context(deterministicContextRef()),
     				new ExItExperienceState(deterministicContextRef()),
     				actions,
-    				computeVisitCountPolicy(1.0),
-    				FVector.wrap(valueEstimates)
+    				visitCountPolicy,
+    				FVector.wrap(valueEstimates),
+    				weightVisitCount
     			);
+    }
+    
+    /**
+     * @return List of samples of experience for learning with Expert Iteration
+     */
+    public List<ExItExperience> generateExItExperiences()
+    {
+    	final List<ExItExperience> experiences = new ArrayList<ExItExperience>();
+    	experiences.add(generateExItExperience(1.f));
+//    	final State myState = this.contextRef().state();
+//    	
+//    	for (int i = 0; i < numLegalMoves(); ++i)
+//    	{
+//    		final BaseNode child = childForNthLegalMove(i);
+//    		if (child != null && child.numVisits() > 0 && child.isValueProven(myState.playerToAgent(myState.mover())) && child.numLegalMoves() > 0)
+//    			experiences.add(child.generateExItExperience(((float) child.numVisits() / numVisits())));
+//    	}
+    	
+    	return experiences;
+    }
+    
+    //-------------------------------------------------------------------------
+    
+    /**
+     * @return Lock for this node
+     */
+    public ReentrantLock getLock()
+    {
+    	return nodeLock;
     }
     
     //-------------------------------------------------------------------------

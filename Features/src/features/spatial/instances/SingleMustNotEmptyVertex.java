@@ -1,5 +1,6 @@
 package features.spatial.instances;
 
+import game.Game;
 import game.types.board.SiteType;
 import main.collections.ChunkSet;
 import other.state.State;
@@ -93,7 +94,7 @@ public class SingleMustNotEmptyVertex extends AtomicProposition
 	//-------------------------------------------------------------------------
 
 	@Override
-	public boolean provesIfTrue(final AtomicProposition other)
+	public boolean provesIfTrue(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -106,7 +107,7 @@ public class SingleMustNotEmptyVertex extends AtomicProposition
 	}
 
 	@Override
-	public boolean disprovesIfTrue(final AtomicProposition other)
+	public boolean disprovesIfTrue(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -114,11 +115,12 @@ public class SingleMustNotEmptyVertex extends AtomicProposition
 		if (testedSite() != other.testedSite())
 			return false;
 		
-		return false;
+		// If not empty, we disprove empty
+		return (other.stateVectorType() == StateVectorTypes.Empty && !other.negated());
 	}
 
 	@Override
-	public boolean provesIfFalse(final AtomicProposition other)
+	public boolean provesIfFalse(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -135,7 +137,7 @@ public class SingleMustNotEmptyVertex extends AtomicProposition
 	}
 
 	@Override
-	public boolean disprovesIfFalse(final AtomicProposition other)
+	public boolean disprovesIfFalse(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;

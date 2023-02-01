@@ -8,6 +8,7 @@ import main.collections.FVector;
 import main.collections.FastArrayList;
 import other.context.Context;
 import other.move.Move;
+import policies.softmax.SoftmaxPolicy;
 import search.mcts.MCTS;
 
 /**
@@ -25,28 +26,37 @@ public final class OpenLoopNode extends BaseNode
 	protected final List<OpenLoopNode> children = new ArrayList<OpenLoopNode>(10);
 	
 	/** Context object for current iteration being run through this node */
-	protected Context currentItContext = null;
+	protected ThreadLocal<Context> currentItContext = ThreadLocal.withInitial(() -> {return null;});
 	
 	/** Our root nodes will keep a deterministic context reference */
 	protected Context deterministicContext = null;
 	
+	/** For the root, we no longer need thread-local current-legal move lists and can instead use a single fixed list */
+	protected FastArrayList<Move> rootLegalMovesList = null;
+	
 	/** Current list of legal moves */
-	protected FastArrayList<Move> currentLegalMoves = null;
+	protected ThreadLocal<FastArrayList<Move>> currentLegalMoves = ThreadLocal.withInitial(() -> {return null;});
 	
 	/** 
 	 * Distribution over legal moves in current iteration in this node,
 	 * as computed by learned Selection policy
 	 */
-	protected FVector learnedSelectionPolicy = null;
+	protected ThreadLocal<FVector> learnedSelectionPolicy = ThreadLocal.withInitial(() -> {return null;});
+	
+	/** Learned selection policy for root node, where we no longer need it to be thread-local */
+	protected FVector rootLearnedSelectionPolicy = null;
 	
 	/** 
 	 * Array in which we store, for every potential index of a currently-legal move, 
 	 * the corresponding child node (or null if not yet expanded).
 	 */
-	protected OpenLoopNode[] moveIdxToNode = null;
+	protected ThreadLocal<OpenLoopNode[]> moveIdxToNode = ThreadLocal.withInitial(() -> {return null;});
+	
+	/** A mapping from move indices to nodes for the root (no longer want this to be thread-local) */
+	protected OpenLoopNode[] rootMoveIdxToNode = null;
 	
 	/** Cached logit computed according to learned selection policy */
-	protected float logit = Float.NaN;
+	protected ThreadLocal<Float> logit = ThreadLocal.withInitial(() -> {return Float.valueOf(Float.NaN);});
 	
 	//-------------------------------------------------------------------------
 	
@@ -77,7 +87,7 @@ public final class OpenLoopNode extends BaseNode
     {
     	children.add((OpenLoopNode) child);
     	
-    	if (parent() == null)
+    	if (parent() == null && deterministicContext != null)
     	{
     		// in case of root node, we'll also want to make sure to call this
     		updateLegalMoveDependencies(true);
@@ -87,13 +97,16 @@ public final class OpenLoopNode extends BaseNode
 	@Override
     public OpenLoopNode childForNthLegalMove(final int n)
     {
-		return moveIdxToNode[n];
+		if (rootMoveIdxToNode != null)
+			return rootMoveIdxToNode[n];
+		
+		return moveIdxToNode.get()[n];
     }
 	
 	@Override
 	public Context contextRef()
 	{
-		return currentItContext;
+		return currentItContext.get();
 	}
 	
 	@Override
@@ -122,13 +135,19 @@ public final class OpenLoopNode extends BaseNode
     @Override
     public FVector learnedSelectionPolicy()
     {
-    	return learnedSelectionPolicy;
+    	if (rootLearnedSelectionPolicy != null)
+    		return rootLearnedSelectionPolicy;
+    	
+    	return learnedSelectionPolicy.get();
     }
     
     @Override
     public FastArrayList<Move> movesFromNode()
     {
-    	return currentLegalMoves;
+    	if (rootLegalMovesList != null)
+    		return rootLegalMovesList;
+    	
+    	return currentLegalMoves.get();
     }
     
     @Override
@@ -140,27 +159,27 @@ public final class OpenLoopNode extends BaseNode
     @Override
     public Move nthLegalMove(final int n)
     {
-    	return currentLegalMoves.get(n);
+    	return movesFromNode().get(n);
     }
 	
 	@Override
 	public int numLegalMoves()
 	{
-		return currentLegalMoves.size();
+		return movesFromNode().size();
 	}
 	
 	@Override
     public Context playoutContext()
     {
-    	// dont need to copy context
-    	return currentItContext;
+    	// Don't need to copy context
+    	return currentItContext.get();
     }
 	
 	@Override
     public void rootInit(final Context context)
     {
 		deterministicContext = context;
-		currentItContext = mcts.copyContext(context);
+		currentItContext.set(mcts.copyContext(context));
     	updateLegalMoveDependencies(true);
     }
 	
@@ -168,7 +187,7 @@ public final class OpenLoopNode extends BaseNode
     public void startNewIteration(final Context context)
     {
 		// make a copy of given context
-		currentItContext = mcts.copyContext(context);
+		currentItContext.set(mcts.copyContext(context));
     }
 	
 	@Override
@@ -194,19 +213,46 @@ public final class OpenLoopNode extends BaseNode
 	@Override
     public Context traverse(final int moveIdx)
     {
-    	// no need to copy current context, just modify it
-		currentItContext.game().apply(currentItContext, currentLegalMoves.get(moveIdx));
-    	return currentItContext;
+    	// No need to copy current context, just modify it
+		final Context context = currentItContext.get();
+		context.game().apply(context, movesFromNode().get(moveIdx));
+    	return context;
     }
 	
 	@Override
 	public void updateContextRef()
 	{
-		// we take the same reference as our parent node
-		currentItContext = parent.contextRef();
+		if (parent != null)
+		{
+			// We take the same reference as our parent node
+			currentItContext.set(parent.contextRef());
+			
+			// and update some computations based on legal moves
+			updateLegalMoveDependencies(false);
+		}
+	}
+	
+	@Override
+	public void cleanThreadLocals()
+	{
+		currentItContext.remove();
+		currentLegalMoves.remove();
+		learnedSelectionPolicy.remove();
+		moveIdxToNode.remove();
+		logit.remove();
 		
-		// and update some computations based on legal moves
-		updateLegalMoveDependencies(false);
+		getLock().lock();
+		try
+		{
+			for (final OpenLoopNode child : children)
+			{
+				child.cleanThreadLocals();
+			}
+		}
+		finally
+		{
+			getLock().unlock();
+		}
 	}
 	
 	//-------------------------------------------------------------------------
@@ -218,64 +264,104 @@ public final class OpenLoopNode extends BaseNode
 	 */
 	private void updateLegalMoveDependencies(final boolean root)
 	{
-		final Context context = root ? deterministicContext : currentItContext;
-		currentLegalMoves = new FastArrayList<Move>(context.game().moves(context).moves());
-		
-		if (root)
+		getLock().lock();
+		try
 		{
-			// now that this is a root node, we may be able to remove some 
-			// children with moves that are not legal
-			for (int i = 0; i < children.size(); /**/)
-			{
-				if (currentLegalMoves.contains(children.get(i).parentMoveWithoutConseq))
-					++i;
-				else
-					children.remove(i);
-			}
-		}
-		
-		// update mapping from legal move index to child node
-		moveIdxToNode = new OpenLoopNode[currentLegalMoves.size()];
-		
-		for (int i = 0; i < moveIdxToNode.length; ++i)
-		{
-			final Move move = currentLegalMoves.get(i);
+			final Context context = root ? deterministicContext : currentItContext.get();
+			final FastArrayList<Move> legalMoves;
 			
-			for (int j = 0; j < children.size(); ++j)
+			if (root)
 			{
-				if (move.equals(children.get(j).parentMoveWithoutConseq))
+				rootLegalMovesList = new FastArrayList<Move>(context.game().moves(context).moves());
+				currentLegalMoves.set(null);
+				legalMoves = rootLegalMovesList;
+			}
+			else
+			{
+				legalMoves = new FastArrayList<Move>(context.game().moves(context).moves());
+				currentLegalMoves.set(legalMoves);
+			}
+						
+			if (root)
+			{
+				// Now that this is a root node, we may be able to remove some 
+				// children with moves that are not legal
+				for (int i = children.size() - 1; i >= 0; --i)
 				{
-					moveIdxToNode[i] = children.get(j);
-					break;
+					if (!legalMoves.contains(children.get(i).parentMoveWithoutConseq))
+						children.remove(i).cleanThreadLocals();
 				}
 			}
-		}
-		
-		// update learned policy distribution
-		if (mcts.learnedSelectionPolicy() != null)
-		{
-			final float[] logits = new float[moveIdxToNode.length];
 			
-			for (int i = 0; i < logits.length; ++i)
+			// Update mapping from legal move index to child node
+			final OpenLoopNode[] mapping = new OpenLoopNode[legalMoves.size()];
+			if (root)
 			{
-				if (moveIdxToNode[i] != null && !Float.isNaN(moveIdxToNode[i].logit))
+				rootMoveIdxToNode = mapping;
+				moveIdxToNode.set(null);
+			}
+			else
+			{
+				moveIdxToNode.set(mapping);
+			}
+			
+			for (int i = 0; i < mapping.length; ++i)
+			{
+				final Move move = legalMoves.get(i);
+				
+				for (int j = 0; j < children.size(); ++j)
 				{
-					logits[i] = moveIdxToNode[i].logit;
-				}
-				else
-				{
-					logits[i] = mcts.learnedSelectionPolicy().computeLogit(
-							context, currentLegalMoves.get(i));
-					
-					if (moveIdxToNode[i] != null)
+					if (move.equals(children.get(j).parentMoveWithoutConseq))
 					{
-						moveIdxToNode[i].logit = logits[i];
+						mapping[i] = children.get(j);
+						break;
 					}
 				}
 			}
 			
-			learnedSelectionPolicy = FVector.wrap(logits);
-			learnedSelectionPolicy.softmax();
+			// Update learned policy distribution
+			if (mcts.learnedSelectionPolicy() != null)
+			{
+				final float[] logits = new float[mapping.length];
+				
+				for (int i = 0; i < logits.length; ++i)
+				{
+					if (mapping[i] != null && !Float.isNaN(mapping[i].logit.get().floatValue()))
+					{
+						logits[i] = mapping[i].logit.get().floatValue();
+					}
+					else
+					{
+						logits[i] = mcts.learnedSelectionPolicy().computeLogit(context, legalMoves.get(i));
+						
+						if (mapping[i] != null)
+						{
+							mapping[i].logit.set(Float.valueOf(logits[i]));
+						}
+					}
+				}
+				
+				final FVector dist = FVector.wrap(logits);
+				
+				if (mcts.learnedSelectionPolicy() instanceof SoftmaxPolicy)
+					dist.softmax();
+				else
+					dist.normalise();
+				
+				if (root)
+				{
+					rootLearnedSelectionPolicy = dist;
+					learnedSelectionPolicy.set(null);
+				}
+				else
+				{
+					learnedSelectionPolicy.set(dist);
+				}
+			}
+		}
+		finally
+		{
+			getLock().unlock();
 		}
 	}
 	

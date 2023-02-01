@@ -8,6 +8,7 @@ import java.util.Set;
 
 import features.spatial.SpatialFeature;
 import features.spatial.SpatialFeature.BitSetTypes;
+import features.spatial.elements.FeatureElement;
 import game.types.board.SiteType;
 import gnu.trove.list.array.TIntArrayList;
 import main.Constants;
@@ -42,6 +43,9 @@ public final class FeatureInstance implements BitwiseTest
 	
 	/** The graph element type this instance tests on */
 	protected final SiteType graphElementType;
+	
+	/** Elements that have already passed testing at init-time */
+	protected final List<FeatureElement> initTimeElements = new ArrayList<FeatureElement>();
 	
 	//-------------------------------------------------------------------------
 	
@@ -177,9 +181,20 @@ public final class FeatureInstance implements BitwiseTest
 		
 		lastToPosition = other.lastToPosition;
 		lastFromPosition = other.lastFromPosition;
+		
+		initTimeElements.addAll(other.initTimeElements);
 	}
 	
 	//-------------------------------------------------------------------------
+	
+	/**
+	 * Adds an element that has already been satisfied at init-time
+	 * @param element
+	 */
+	public void addInitTimeElement(final FeatureElement element)
+	{
+		initTimeElements.add(element);
+	}
 	
 	/**
 	 * Adds a test without any particular value (testing for something like Empty, rather than something like
@@ -232,13 +247,13 @@ public final class FeatureInstance implements BitwiseTest
 					switch (graphElementType)
 					{
 					case Cell:
-						mustEmpty = new ChunkSet(1, container.emptyChunkSetCell().size());
+						mustEmpty = new ChunkSet(1, 1);
 						break;
 					case Vertex:
-						mustEmpty = new ChunkSet(1, container.emptyChunkSetVertex().size());
+						mustEmpty = new ChunkSet(1, 1);
 						break;
 					case Edge:
-						mustEmpty = new ChunkSet(1, container.emptyChunkSetEdge().size());
+						mustEmpty = new ChunkSet(1, 1);
 						break;
 					//$CASES-OMITTED$ Hint
 					default:
@@ -259,13 +274,13 @@ public final class FeatureInstance implements BitwiseTest
 					switch (graphElementType)
 					{
 					case Cell:
-						mustNotEmpty = new ChunkSet(1, container.emptyChunkSetCell().size());
+						mustNotEmpty = new ChunkSet(1, 1);
 						break;
 					case Vertex:
-						mustNotEmpty = new ChunkSet(1, container.emptyChunkSetVertex().size());
+						mustNotEmpty = new ChunkSet(1, 1);
 						break;
 					case Edge:
-						mustNotEmpty = new ChunkSet(1, container.emptyChunkSetEdge().size());
+						mustNotEmpty = new ChunkSet(1, 1);
 						break;
 					//$CASES-OMITTED$ Hint
 					default:
@@ -298,31 +313,26 @@ public final class FeatureInstance implements BitwiseTest
 				if (mustWho == null)
 				{
 					final int chunkSize;
-					final int numChunks;
 					
 					switch (graphElementType)
 					{
 					case Cell:
 						chunkSize = container.chunkSizeWhoCell();
-						numChunks = container.numChunksWhoCell();
 						break;
 					case Edge:
 						chunkSize = container.chunkSizeWhoEdge();
-						numChunks = container.numChunksWhoEdge();
 						break;
 					case Vertex:
 						chunkSize = container.chunkSizeWhoVertex();
-						numChunks = container.numChunksWhoVertex();
 						break;
 						//$CASES-OMITTED$		Hint
 					default:
 						chunkSize = Constants.UNDEFINED;
-						numChunks = Constants.UNDEFINED;
 						break;
 					}
 						
-					mustWho = new ChunkSet(chunkSize, numChunks);
-					mustWhoMask = new ChunkSet(chunkSize, numChunks);
+					mustWho = new ChunkSet(chunkSize, 1);
+					mustWhoMask = new ChunkSet(chunkSize, 1);
 				}
 				
 				mustWho.setChunk(testSite, value);
@@ -349,31 +359,26 @@ public final class FeatureInstance implements BitwiseTest
 				if (mustNotWho == null)
 				{
 					final int chunkSize;
-					final int numChunks;
 					
 					switch (graphElementType)
 					{
 					case Cell:
 						chunkSize = container.chunkSizeWhoCell();
-						numChunks = container.numChunksWhoCell();
 						break;
 					case Edge:
 						chunkSize = container.chunkSizeWhoEdge();
-						numChunks = container.numChunksWhoEdge();
 						break;
 					case Vertex:
 						chunkSize = container.chunkSizeWhoVertex();
-						numChunks = container.numChunksWhoVertex();
 						break;
 						//$CASES-OMITTED$		Hint
 					default:
 						chunkSize = Constants.UNDEFINED;
-						numChunks = Constants.UNDEFINED;
 						break;
 					}
 					
-					mustNotWho = new ChunkSet(chunkSize, numChunks);
-					mustNotWhoMask = new ChunkSet(chunkSize, numChunks);
+					mustNotWho = new ChunkSet(chunkSize, 1);
+					mustNotWhoMask = new ChunkSet(chunkSize, 1);
 				}
 				
 				mustNotWho.setChunk(testSite, value);
@@ -392,8 +397,12 @@ public final class FeatureInstance implements BitwiseTest
 					// inconsistency which is not fine
 					return (mustWhat.getChunk(testSite) == value);
 				}
-				else if (mustNotWhatMask != null 
-						&& mustNotWhat.getChunk(testSite) == value)
+				else if 
+				(
+					mustNotWhatMask != null 
+					&& 
+					mustNotWhat.getChunk(testSite) == value
+				)
 				{
 					// inconsistency: we already have a requirement that what 
 					// should specifically NOT be this value
@@ -403,31 +412,26 @@ public final class FeatureInstance implements BitwiseTest
 				if (mustWhat == null)
 				{
 					final int chunkSize;
-					final int numChunks;
 					
 					switch (graphElementType)
 					{
 					case Cell:
 						chunkSize = container.chunkSizeWhatCell();
-						numChunks = container.numChunksWhatCell();
 						break;
 					case Edge:
 						chunkSize = container.chunkSizeWhatEdge();
-						numChunks = container.numChunksWhatEdge();
 						break;
 					case Vertex:
 						chunkSize = container.chunkSizeWhatVertex();
-						numChunks = container.numChunksWhatVertex();
 						break;
 						//$CASES-OMITTED$		Hint
 					default:
 						chunkSize = Constants.UNDEFINED;
-						numChunks = Constants.UNDEFINED;
 						break;
 					}
 					
-					mustWhat = new ChunkSet(chunkSize, numChunks);
-					mustWhatMask = new ChunkSet(chunkSize, numChunks);
+					mustWhat = new ChunkSet(chunkSize, 1);
+					mustWhatMask = new ChunkSet(chunkSize, 1);
 				}
 				
 				mustWhat.setChunk(testSite, value);
@@ -454,31 +458,26 @@ public final class FeatureInstance implements BitwiseTest
 				if (mustNotWhat == null)
 				{
 					final int chunkSize;
-					final int numChunks;
 					
 					switch (graphElementType)
 					{
 					case Cell:
 						chunkSize = container.chunkSizeWhatCell();
-						numChunks = container.numChunksWhatCell();
 						break;
 					case Edge:
 						chunkSize = container.chunkSizeWhatEdge();
-						numChunks = container.numChunksWhatEdge();
 						break;
 					case Vertex:
 						chunkSize = container.chunkSizeWhatVertex();
-						numChunks = container.numChunksWhatVertex();
 						break;
 						//$CASES-OMITTED$		Hint
 					default:
 						chunkSize = Constants.UNDEFINED;
-						numChunks = Constants.UNDEFINED;
 						break;
 					}
 					
-					mustNotWhat = new ChunkSet(chunkSize, numChunks);
-					mustNotWhatMask = new ChunkSet(chunkSize, numChunks);
+					mustNotWhat = new ChunkSet(chunkSize, 1);
+					mustNotWhatMask = new ChunkSet(chunkSize, 1);
 				}
 				
 				mustNotWhat.setChunk(testSite, value);
@@ -486,6 +485,7 @@ public final class FeatureInstance implements BitwiseTest
 				allRestrictionsNull = false;
 			}
 			break;
+			//$CASES-OMITTED$
 		default:
 			System.err.println("Warning: bitSetType " + bitSetType + " not supported by FeatureInstance.addTest()!");
 			return false;
@@ -1322,16 +1322,37 @@ public final class FeatureInstance implements BitwiseTest
 		result = prime * result + reflection;
 		result = prime * result + Float.floatToIntBits(rotation);
 		result = prime * result + toPosition;
+		
+		// Order of elements in initTimeElements should not matter
+		int initTimeElementsHash = 0;
+		for (final FeatureElement element : initTimeElements)
+		{
+			// XORing them all means order does not matter
+			initTimeElementsHash ^= element.hashCode();
+		}
+		
+		result = prime * result + (prime + initTimeElementsHash);
+		
 		return result;
 	}
 
 	@Override
-	public boolean equals(Object other)
+	public boolean equals(final Object other)
 	{
 		if (!(other instanceof FeatureInstance))
 			return false;
 		
 		final FeatureInstance otherInstance = (FeatureInstance) other;
+		
+		// Order of elements in initTimeElements should not matter
+		if (initTimeElements.size() != otherInstance.initTimeElements.size())
+			return false;
+		
+		for (final FeatureElement element : initTimeElements)
+		{
+			if (!otherInstance.initTimeElements.contains(element))
+				return false;
+		}
 		
 		return (
 				toPosition == otherInstance.toPosition &&
@@ -1392,6 +1413,36 @@ public final class FeatureInstance implements BitwiseTest
 				Objects.equals(mustNotWhat, other.mustNotWhat) &&
 				Objects.equals(mustNotWhatMask, other.mustNotWhatMask)
 				);
+	}
+	
+	/**
+	 * @param other
+	 * @return True if and only if we would have been equal to the given other
+	 * 	instance if our anchors were the same.
+	 */
+	public boolean equalsIgnoreAnchor(final FeatureInstance other)
+	{
+		return 
+				(
+					rotation == other.rotation &&
+					reflection == other.reflection &&
+					feature().equals(other.feature())
+				);
+	}
+	
+	/**
+	 * @return Hash code that takes into account rotation and reflection and
+	 * 	feature, but not anchor.
+	 */
+	public int hashCodeIgnoreAnchor()
+	{
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + feature().hashCode();
+		result = prime * result + reflection;
+		result = prime * result + Float.floatToIntBits(rotation);
+		
+		return result;
 	}
 	
 	//-------------------------------------------------------------------------

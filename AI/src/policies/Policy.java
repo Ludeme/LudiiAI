@@ -34,6 +34,8 @@ public abstract class Policy extends AI implements PlayoutStrategy
 		final boolean thresholded
 	);
 	
+	//-------------------------------------------------------------------------
+	
 	/**
 	 * @param context
 	 * @param move

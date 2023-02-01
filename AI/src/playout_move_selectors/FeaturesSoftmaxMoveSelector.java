@@ -1,9 +1,8 @@
 package playout_move_selectors;
 
-import java.util.List;
-
+import features.FeatureVector;
+import features.WeightVector;
 import features.feature_sets.BaseFeatureSet;
-import gnu.trove.list.array.TIntArrayList;
 import main.collections.FVector;
 import main.collections.FastArrayList;
 import other.context.Context;
@@ -25,7 +24,10 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 	protected final BaseFeatureSet[] featureSets;
 	
 	/** Weight vectors (one per player, or just a shared one at index 0) */
-	protected final FVector[] weights;
+	protected final WeightVector[] weights;
+	
+	/** Do we want to use thresholding to ignore low-weight features? */
+	protected final boolean thresholded;
 	
 	//-------------------------------------------------------------------------
 	
@@ -33,15 +35,18 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 	 * Constructor
 	 * @param featureSets Feature sets (one per player, or just a shared one at index 0)
 	 * @param weights Weight vectors (one per player, or just a shared one at index 0)
+	 * @param thresholded Do we want to use thresholding to ignore low-weight features?
 	 */
 	public FeaturesSoftmaxMoveSelector
 	(
 		final BaseFeatureSet[] featureSets, 
-		final FVector[] weights
+		final WeightVector[] weights,
+		final boolean thresholded
 	)
 	{
 		this.featureSets = featureSets;
 		this.weights = weights;
+		this.thresholded = thresholded;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -56,7 +61,7 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 	)
 	{
 		final BaseFeatureSet featureSet;
-		final FVector weightVector;
+		final WeightVector weightVector;
 		if (featureSets.length == 1)
 		{
 			featureSet = featureSets[0];
@@ -68,14 +73,13 @@ public class FeaturesSoftmaxMoveSelector extends PlayoutMoveSelector		// TODO al
 			weightVector = weights[p];
 		}
 
-		final List<TIntArrayList> sparseFeatureVectors = 
-				featureSet.computeSparseFeatureVectors(context, maybeLegalMoves, true);
+		final FeatureVector[] featureVectors = featureSet.computeFeatureVectors(context, maybeLegalMoves, thresholded);
 
-		final float[] logits = new float[sparseFeatureVectors.size()];
+		final float[] logits = new float[featureVectors.length];
 
-		for (int i = 0; i < sparseFeatureVectors.size(); ++i)
+		for (int i = 0; i < featureVectors.length; ++i)
 		{
-			logits[i] = weightVector.dotSparse(sparseFeatureVectors.get(i));
+			logits[i] = weightVector.dot(featureVectors[i]);
 		}
 
 		final FVector distribution = FVector.wrap(logits);

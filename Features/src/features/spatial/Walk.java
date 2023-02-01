@@ -1,5 +1,6 @@
 package features.spatial;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -28,15 +29,23 @@ import other.topology.TopologyElement;
  * - half of the possible turns counter-clockwise (e.g. turning backwards), walk
  * once <br>
  * 
- * @author cambolbro and Dennis Soemers
+ * @author Dennis Soemers and cambolbro
  */
 public class Walk
 {
 	
 	//-------------------------------------------------------------------------
 	
+	/** Weak reference to last game for which we computed allGameRotations */
+	private static volatile WeakReference<Game> cachedGame = new WeakReference<Game>(null);
+	
+	/** Cached list of all game rotations */
+	private static volatile float[] cachedAllGameRotations = new float[0];
+	
+	//-------------------------------------------------------------------------
+	
 	/** Relative turns to make for every step */
-	protected TFloatArrayList steps;
+	protected final TFloatArrayList steps;
 	
 	//-------------------------------------------------------------------------
 	
@@ -122,6 +131,8 @@ public class Walk
 			// guess we're doing nothing at all
 			return;
 		}
+		
+		assert (reflection == -1);
 		
 		for (int i = 0; i < steps.size(); ++i)
 		{
@@ -467,6 +478,16 @@ public class Walk
 	{
 		final int prime = 31;
 		int result = 1;
+		
+		// We very often have values of 0.f in steps, and otherwise also very often
+		// permutations of the same values.
+		// The standard hashCode() implementation of TFloatArrayList produces lots
+		// of collisions for these types of lists, so we roll our own implementation
+		for (int i = 0; i < steps.size(); ++i)
+		{
+			result = prime * result + Float.floatToIntBits((steps.getQuick(i) + 1.f) * 663608941.737f);
+		}
+		
 		result = prime * result + ((steps == null) ? 0 : steps.hashCode());
 		return result;
 	}
@@ -484,11 +505,13 @@ public class Walk
 	
 	/**
 	 * @param game
-	 * @return List of all possible sensible rotations for the given game's
-	 * board
+	 * @return Array of all possible sensible rotations for the given game's board
 	 */
-	public static TFloatArrayList allGameRotations(final Game game)
+	public static float[] allGameRotations(final Game game)
 	{
+		if (cachedGame.get() == game)
+			return cachedAllGameRotations;
+		
 		final TIntArrayList connectivities = game.board().topology().trueOrthoConnectivities(game);
 		final TFloatArrayList rotations = new TFloatArrayList();
 		
@@ -525,7 +548,10 @@ public class Walk
 			}
 		}
 		
-		return rotations;
+		cachedAllGameRotations = rotations.toArray();
+		cachedGame = new WeakReference<Game>(game);
+		
+		return cachedAllGameRotations;
 	}
 	
 	/**
@@ -554,7 +580,7 @@ public class Walk
 		
 		for (int i = 0; i < steps.size(); ++i)
 		{
-			str += StringRoutines.floatToFraction(steps.get(i), 10);
+			str += StringRoutines.floatToFraction(steps.get(i), 20);
 			
 			if (i < steps.size() - 1)
 			{

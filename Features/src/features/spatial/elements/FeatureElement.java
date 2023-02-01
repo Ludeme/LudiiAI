@@ -48,6 +48,15 @@ public abstract class FeatureElement
 		/** Check if a position specified relatively has number of connections = N */
 		Connectivity("Connectivity", "N"),
 		
+		/** Check if a position specified relatively is closer to a specific Region than the anchor position */
+		RegionProximity("RegionProximity", "R"),
+		
+		/** Check if a specific piece type is in orthogonal line-of-sight */
+		LineOfSightOrth("LineOfSightOrth", "LOSO"),
+		
+		/** Check if a specific piece type is in diagonal line-of-sight */
+		LineOfSightDiag("LineOfSightDiag", "LOSD"),
+		
 		// The following two are only used as "dummies" in Atomic Feature Generation, not inside actual features
 		
 		/** Only for use in atomic feature generation, not in real features */
@@ -169,174 +178,222 @@ public abstract class FeatureElement
 		
 		if (!not() && !other.not())		// neither negated
 		{
-			if (myType == ElementType.Empty)
+			switch (myType)
 			{
-				return (otherType == ElementType.Any || otherType == ElementType.IsPos || otherType == ElementType.Connectivity);
-			}
-			else if (myType == ElementType.Friend)
-			{
-				return (otherType == ElementType.Any || 
-						otherType == ElementType.P1 || 
-						otherType == ElementType.P2 || 
-						otherType == ElementType.Item || 
-						otherType == ElementType.IsPos ||
-						otherType == ElementType.Connectivity);
-			}
-			else if (myType == ElementType.Enemy)
-			{
-				return (otherType == ElementType.Any || 
-						otherType == ElementType.P1 || 
-						otherType == ElementType.P2 || 
-						otherType == ElementType.Item || 
-						otherType == ElementType.IsPos ||
-						otherType == ElementType.Connectivity);
-			}
-			else if (myType == ElementType.Off)
-			{
+			case Empty:
+				switch (otherType)
+				{
+				case Any:
+				case IsPos:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case Friend:
+				switch (otherType)
+				{
+				case Any:
+				case P1:
+				case P2:
+				case Item:
+				case IsPos:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case Enemy:
+				switch (otherType)
+				{
+				case Any:
+				case P1:
+				case P2:
+				case Item:
+				case IsPos:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case Off:
 				return false;
-			}
-			else if (myType == ElementType.Any)	
-			{
+			case Any:
 				return (otherType != ElementType.Off);
-			}
-			else if (myType == ElementType.P1)
-			{
-				return (otherType == ElementType.Any || 
-						otherType == ElementType.Friend || 
-						otherType == ElementType.Enemy || 
-						otherType == ElementType.P2 || 
-						otherType == ElementType.Item || 
-						otherType == ElementType.IsPos ||
-						otherType == ElementType.Connectivity);
-			}
-			else if (myType == ElementType.P2)
-			{
-				return (otherType == ElementType.Any || 
-						otherType == ElementType.Friend || 
-						otherType == ElementType.Enemy || 
-						otherType == ElementType.P1 || 
-						otherType == ElementType.Item || 
-						otherType == ElementType.IsPos);
-			}
-			else if (myType == ElementType.Item)	
-			{
-				return (otherType == ElementType.Any || 
-						otherType == ElementType.Friend || 
-						otherType == ElementType.Enemy || 
-						otherType == ElementType.P1 || 
-						otherType == ElementType.P2 || 
-						otherType == ElementType.IsPos ||
-						otherType == ElementType.Connectivity);
-			}
-			else if (myType == ElementType.IsPos)
-			{
-				return (otherType == ElementType.Any || 
-						otherType == ElementType.Friend || 
-						otherType == ElementType.Enemy || 
-						otherType == ElementType.P1 || 
-						otherType == ElementType.P2 || 
-						otherType == ElementType.Item ||
-						otherType == ElementType.Connectivity);
-			}
-			else if (myType == ElementType.Connectivity)
-			{
+			case P1:
+				switch (otherType)
+				{
+				case Any:
+				case Friend:
+				case Enemy:
+				case P2:
+				case Item:
+				case IsPos:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case P2:
+				switch (otherType)
+				{
+				case Any:
+				case Friend:
+				case Enemy:
+				case P1:
+				case Item:
+				case IsPos:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case Item:
+				switch (otherType)
+				{
+				case Any:
+				case Friend:
+				case Enemy:
+				case P1:
+				case P2:
+				case IsPos:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case IsPos:
+				switch (otherType)
+				{
+				case Any:
+				case Friend:
+				case Enemy:
+				case P1:
+				case P2:
+				case Item:
+				case Connectivity:
+				case RegionProximity:
+				case LineOfSightOrth:
+				case LineOfSightDiag:
+					return true;
+					//$CASES-OMITTED$
+				default:
+					return false;
+				}
+			case Connectivity:
 				return (otherType != ElementType.Off);
+			case RegionProximity:
+				return (otherType != ElementType.Off);
+			case LineOfSightOrth:
+				return (otherType != ElementType.Off);
+			case LineOfSightDiag:
+				return (otherType != ElementType.Off);
+				//$CASES-OMITTED$
+			default:
+				System.err.println("Unrecognised element type: " + myType);
+				throw new UnsupportedOperationException();
 			}
 		}
 		else if (not() && other.not())	// both negated
 		{
-			if (myType == ElementType.Empty)
+			switch (myType)
 			{
+			case Empty:
 				return (otherType != ElementType.Any); 
-			}
-			else if (myType == ElementType.Friend)
-			{
+			case Friend:
 				return true;
-			}
-			else if (myType == ElementType.Enemy)
-			{
+			case Enemy:
 				return true;
-			}
-			else if (myType == ElementType.Off)
-			{
+			case Off:
 				return (otherType != ElementType.Any);
-			}
-			else if (myType == ElementType.Any)	
-			{
+			case Any:
 				return (otherType != ElementType.Off);
-			}
-			else if (myType == ElementType.P1)
-			{
+			case P1:
 				return true;
-			}
-			else if (myType == ElementType.P2)
-			{
+			case P2:
 				return true;
-			}
-			else if (myType == ElementType.Item)	
-			{
+			case Item:
 				return true;
-			}
-			else if (myType == ElementType.IsPos)
-			{
+			case IsPos:
 				return true;
-			}
-			else if (myType == ElementType.Connectivity)
-			{
+			case Connectivity:
 				return (otherType != ElementType.Any);
+			case RegionProximity:
+				return (otherType != ElementType.Any);
+			case LineOfSightOrth:
+				return true;
+			case LineOfSightDiag:
+				return true;
+				//$CASES-OMITTED$
+			default:
+				System.err.println("Unrecognised element type: " + myType);
+				throw new UnsupportedOperationException();
 			}
 		}
 		else if (not() && !other.not())	// we negated, other not negated
 		{
-			if (myType == ElementType.Empty)
+			switch (myType)
 			{
+			case Empty:
 				return true;
-			}
-			else if (myType == ElementType.Friend)
-			{
+			case Friend:
 				return true;
-			}
-			else if (myType == ElementType.Enemy)
-			{
+			case Enemy:
 				return true;
-			}
-			else if (myType == ElementType.Off)
-			{
+			case Off:
 				return true;
-			}
-			else if (myType == ElementType.Any)	
-			{
+			case Any:
 				return (otherType == ElementType.Off);
-			}
-			else if (myType == ElementType.P1)
-			{
+			case P1:
 				return true;
-			}
-			else if (myType == ElementType.P2)
-			{
+			case P2:
 				return true;
-			}
-			else if (myType == ElementType.Item)	
-			{
+			case Item:
 				return true;
-			}
-			else if (myType == ElementType.IsPos)
-			{
+			case IsPos:
 				return true;
-			}
-			else if (myType == ElementType.Connectivity)
-			{
+			case Connectivity:
 				return (otherType != ElementType.Off);
+			case RegionProximity:
+				return (otherType != ElementType.Off);
+			case LineOfSightOrth:
+				return true;
+			case LineOfSightDiag:
+				return true;
+				//$CASES-OMITTED$
+			default:
+				System.err.println("Unrecognised element type: " + myType);
+				throw new UnsupportedOperationException();
 			}
 		}
 		else							// we not negated, other negated
 		{
 			return other.isCompatibleWith(this);
 		}
-		
-		// This should never happen
-		System.err.println("Warning: FeatureElement.isCompatibleWith() returning default value!");
-		return true;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -393,9 +450,9 @@ public abstract class FeatureElement
 			//-----------------------------------------------------------------
 			// We have a "not" modifier and the other element doesn't
 			//-----------------------------------------------------------------
-
-			if (firstType == ElementType.Empty)
+			switch (firstType)
 			{
+			case Empty:
 				// "not empty" fails to generalise "empty", "off board", "item" (which may test for empty with itemIndex = 0),
 				// "is pos", and "connectivity"
 				if 
@@ -404,7 +461,10 @@ public abstract class FeatureElement
 					secondType == ElementType.Off || 
 					secondType == ElementType.Item || 
 					secondType == ElementType.IsPos ||
-					secondType == ElementType.Connectivity
+					secondType == ElementType.Connectivity ||
+					secondType == ElementType.RegionProximity ||
+					secondType == ElementType.LineOfSightOrth ||
+					secondType == ElementType.LineOfSightDiag
 				)
 				{
 					return new TypeGeneralisationResult(false, false);
@@ -413,9 +473,8 @@ public abstract class FeatureElement
 				{
 					return new TypeGeneralisationResult(true, true);
 				}
-			}
-			else if (firstType == ElementType.Friend)	// "not friend" generalises "empty", "enemy", and "off board"
-			{
+			case Friend:
+				// "not friend" generalises "empty", "enemy", and "off board"
 				if 
 				(
 					secondType != ElementType.Empty && 
@@ -429,9 +488,8 @@ public abstract class FeatureElement
 				{
 					return new TypeGeneralisationResult(true, true);
 				}
-			}
-			else if (firstType == ElementType.Enemy)		// "not enemy" generalises "empty", "friend", and "off board"
-			{
+			case Enemy:
+				// "not enemy" generalises "empty", "friend", and "off board"
 				if 
 				(
 					secondType != ElementType.Empty && 
@@ -445,27 +503,20 @@ public abstract class FeatureElement
 				{
 					return new TypeGeneralisationResult(true, true);
 				}
-			}
-			else if (firstType == ElementType.Off)		// "not off" only fails to generalise "any" and "off board"
-			{
+			case Off:
+				// "not off" only fails to generalise "any" and "off board"
 				if (secondType == ElementType.Off || secondType == ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Any)	// "not any" can only equal "off board" (but not a strict generalisation)
-			{
+			case Any:
+				// "not any" can only equal "off board" (but not a strict generalisation)
 				if (secondType != ElementType.Off)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
-			}
-			else if (firstType == ElementType.P1)	// "not P1" generalises "empty", "off board", and "P2"
-			{
+				else
+					break;
+			case P1:
+				// "not P1" generalises "empty", "off board", and "P2"
 				if 
 				(
 					secondType != ElementType.Empty && 
@@ -479,9 +530,8 @@ public abstract class FeatureElement
 				{
 					return new TypeGeneralisationResult(true, true);
 				}
-			}
-			else if (firstType == ElementType.P2)	// "not P2" generalises "empty", "off board", and "P1"
-			{
+			case P2:
+				// "not P2" generalises "empty", "off board", and "P1"
 				if 
 				(
 					secondType != ElementType.Empty && 
@@ -495,25 +545,31 @@ public abstract class FeatureElement
 				{
 					return new TypeGeneralisationResult(true, true);
 				}
-			}
-			else if (firstType == ElementType.Item)		// "not item" only generalises "off board"
-			{
+			case Item:
+				// "not item" only generalises "off board"
 				if (secondType != ElementType.Off)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.IsPos)	// "not is pos" doesn't generalise anything
-			{
+			case IsPos:
+				// "not is pos" doesn't generalise anything
 				return new TypeGeneralisationResult(false, false);
-			}
-			else if (firstType == ElementType.Connectivity)		// "not connectivity" doesn't generalise anything
-			{
+			case Connectivity:
+				// "not connectivity" doesn't generalise anything
 				return new TypeGeneralisationResult(false, false);
+			case RegionProximity:
+				// "not closer than anchor to region" doesn't generalise anything
+				return new TypeGeneralisationResult(false, false);
+			case LineOfSightOrth:
+				// "not in orthogonal line of sight" doesn't generalise anything
+				return new TypeGeneralisationResult(false, false);
+			case LineOfSightDiag:
+				// "not in diagonal line of sight" doesn't generalise anything
+				return new TypeGeneralisationResult(false, false);
+				//$CASES-OMITTED$
+			default:
+				System.err.println("Unrecognised element type: " + firstType);
+				throw new UnsupportedOperationException();
 			}
 		}
 		else if (!firstNot && secondNot)
@@ -539,121 +595,90 @@ public abstract class FeatureElement
 			//-----------------------------------------------------------------
 			// Both elements have a "not" modifier
 			//-----------------------------------------------------------------
-			
-			if (firstType == ElementType.Empty)
+			switch (firstType)
 			{
+			case Empty:
 				// "not empty" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Friend)
-			{
+			case Friend:
 				// "not friend" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Enemy)
-			{
+			case Enemy:
 				// "not enemy" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Off)
-			{
+			case Off:
 				// "not off" only generalises "not empty"
 				if (secondType != ElementType.Empty)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Any)	// "not any" can only equal "not any", but not generalise any other "not X"
-			{
+			case Any:
+				// "not any" can only equal "not any", but not generalise any other "not X"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
-			}
-			else if (firstType == ElementType.P1)
-			{
+				else
+					break;
+			case P1:
 				// "not P1" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.P2)
-			{
+			case P2:
 				// "not P2" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Item)
-			{
+			case Item:
 				// "not Item" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.IsPos)
-			{
+			case IsPos:
 				// "not Is Pos" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
-			}
-			else if (firstType == ElementType.Connectivity)
-			{
+			case Connectivity:
 				// "not connectivity" only generalises "not any"
 				if (secondType != ElementType.Any)
-				{
 					return new TypeGeneralisationResult(false, false);
-				}
 				else
-				{
 					return new TypeGeneralisationResult(true, true);
-				}
+			case RegionProximity:
+				// "not closer than anchor to region" only generalises "not any"
+				if (secondType != ElementType.Any)
+					return new TypeGeneralisationResult(false, false);
+				else
+					return new TypeGeneralisationResult(true, true);
+			case LineOfSightOrth:
+				// "not in orthogonal line of sight" only generalises "not any"
+				if (secondType != ElementType.Any)
+					return new TypeGeneralisationResult(false, false);
+				else
+					return new TypeGeneralisationResult(true, true);
+			case LineOfSightDiag:
+				// "not in diagonal line of sight" only generalises "not any"
+				if (secondType != ElementType.Any)
+					return new TypeGeneralisationResult(false, false);
+				else
+					return new TypeGeneralisationResult(true, true);
+				//$CASES-OMITTED$
+			default:
+				System.err.println("Unrecognised element type: " + firstType);
+				throw new UnsupportedOperationException();
 			}
 		}
 		else

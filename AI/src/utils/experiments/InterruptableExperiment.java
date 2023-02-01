@@ -171,6 +171,7 @@ public abstract class InterruptableExperiment
 	 * @param logWriter
 	 * @param line
 	 */
+	@SuppressWarnings("static-method")
 	public void logLine(final PrintWriter logWriter, final String line)
 	{
 		if (logWriter != null)
@@ -185,6 +186,14 @@ public abstract class InterruptableExperiment
 				)
 			);
 		}
+	}
+	
+	/**
+	 * @return Do we want to be interrupted?
+	 */
+	public boolean wantsInterrupt()
+	{
+		return interrupted;
 	}
 
 	//-------------------------------------------------------------------------

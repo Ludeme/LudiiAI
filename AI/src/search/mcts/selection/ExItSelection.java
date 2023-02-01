@@ -3,6 +3,7 @@ package search.mcts.selection;
 import java.util.concurrent.ThreadLocalRandom;
 
 import main.collections.FVector;
+import other.state.State;
 import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 
@@ -59,22 +60,24 @@ public final class ExItSelection implements SelectionStrategy
 	{
 		int bestIdx = -1;
         double bestValue = Double.NEGATIVE_INFINITY;
-        final FVector distribution = current.learnedSelectionPolicy();
-        final double parentLog = Math.log(Math.max(1, current.sumLegalChildVisits()));
         int numBestFound = 0;
         
+        final FVector distribution = current.learnedSelectionPolicy();
+        final double parentLog = Math.log(Math.max(1, current.sumLegalChildVisits()));
+
         final int numChildren = current.numLegalMoves();
-        final int mover = current.contextRef().state().mover();
+        final State state = current.contextRef().state();
+        final int moverAgent = state.playerToAgent(state.mover());
         final double unvisitedValueEstimate = 
-        		current.valueEstimateUnvisitedChildren(mover, current.contextRef().state());
-        
+        		current.valueEstimateUnvisitedChildren(moverAgent);
+
         for (int i = 0; i < numChildren; ++i)
         {
         	final BaseNode child = current.childForNthLegalMove(i);
         	final double exploit;
         	final double explore;
         	final int numVisits;
-        	
+
         	if (child == null)
         	{
         		exploit = unvisitedValueEstimate;
@@ -83,30 +86,34 @@ public final class ExItSelection implements SelectionStrategy
         	}
         	else
         	{
-        		exploit = child.averageScore(mover, current.contextRef().state());
-        		numVisits = child.numVisits();
+        		exploit = child.exploitationScore(moverAgent);
+        		numVisits = child.numVisits() + child.numVirtualVisits();
         		explore = Math.sqrt(parentLog / numVisits);
         	}
-        	
-            final float priorProb = distribution.get(i);
-            final double priorTerm = priorProb / (numVisits + 1);
-            
-            final double ucb1pValue = 
-            		exploit + 
-            		explorationConstant * explore + 
-            		priorPolicyWeight * priorTerm;
-            
-            if (ucb1pValue > bestValue)
-            {
-                bestValue = ucb1pValue;
-                bestIdx = i;
-                numBestFound = 1;
-            }
-            else if (ucb1pValue == bestValue && 
-            		ThreadLocalRandom.current().nextInt() % ++numBestFound == 0)
-            {
-            	bestIdx = i;
-            }
+
+        	final float priorProb = distribution.get(i);
+        	final double priorTerm = priorProb / (numVisits + 1);
+
+        	final double ucb1pValue = 
+        			exploit + 
+        			explorationConstant * explore + 
+        			priorPolicyWeight * priorTerm;
+
+        	if (ucb1pValue > bestValue)
+        	{
+        		bestValue = ucb1pValue;
+        		bestIdx = i;
+        		numBestFound = 1;
+        	}
+        	else if 
+        	(
+        		ucb1pValue == bestValue 
+        		&& 
+        		ThreadLocalRandom.current().nextInt() % ++numBestFound == 0
+        	)
+        	{
+        		bestIdx = i;
+        	}
         }
         
         return bestIdx;
@@ -116,6 +123,12 @@ public final class ExItSelection implements SelectionStrategy
 	
 	@Override
 	public int backpropFlags()
+	{
+		return 0;
+	}
+	
+	@Override
+	public int expansionFlags()
 	{
 		return 0;
 	}
@@ -137,7 +150,7 @@ public final class ExItSelection implements SelectionStrategy
 				}
 				else
 				{
-					System.err.println("ExItSelection ignores unknown customization: " + input);
+					System.err.println("ExItSelection ignores unknown customisation: " + input);
 				}
 			}
 		}

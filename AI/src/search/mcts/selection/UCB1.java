@@ -2,6 +2,7 @@ package search.mcts.selection;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import other.state.State;
 import search.mcts.MCTS;
 import search.mcts.nodes.BaseNode;
 
@@ -44,20 +45,20 @@ public final class UCB1 implements SelectionStrategy
 	{
 		int bestIdx = -1;
         double bestValue = Double.NEGATIVE_INFINITY;
-        final double parentLog = Math.log(Math.max(1, current.sumLegalChildVisits()));
         int numBestFound = 0;
-        
+
+        final double parentLog = Math.log(Math.max(1, current.sumLegalChildVisits()));
         final int numChildren = current.numLegalMoves();
-        final int mover = current.contextRef().state().mover();
-        final double unvisitedValueEstimate = 
-        		current.valueEstimateUnvisitedChildren(mover, current.contextRef().state());
+        final State state = current.contextRef().state();
+        final int moverAgent = state.playerToAgent(state.mover());
+        final double unvisitedValueEstimate = current.valueEstimateUnvisitedChildren(moverAgent);
 
         for (int i = 0; i < numChildren; ++i) 
         {
         	final BaseNode child = current.childForNthLegalMove(i);
         	final double exploit;
         	final double explore;
-        	
+
         	if (child == null)
         	{
         		exploit = unvisitedValueEstimate;
@@ -65,30 +66,31 @@ public final class UCB1 implements SelectionStrategy
         	}
         	else
         	{
-        		exploit = child.averageScore(mover, current.contextRef().state());
-        		final int numVisits = child.numVisits();
+        		exploit = child.exploitationScore(moverAgent);
+        		final int numVisits = child.numVisits() + child.numVirtualVisits();
         		explore = Math.sqrt(parentLog / numVisits);
         	}
-        
-            final double ucb1Value = exploit + explorationConstant * explore;
-            //System.out.println("ucb1Value = " + ucb1Value);
-            //System.out.println("exploit = " + exploit);
-            //System.out.println("explore = " + explore);
-            
-            if (ucb1Value > bestValue)
-            {
-                bestValue = ucb1Value;
-                bestIdx = i;
-                numBestFound = 1;
-            }
-            else if 
-            (
-            	ucb1Value == bestValue && 
-            	ThreadLocalRandom.current().nextInt() % ++numBestFound == 0
-            )
-            {
-            	bestIdx = i;
-            }
+
+        	final double ucb1Value = exploit + explorationConstant * explore;
+        	//System.out.println("ucb1Value = " + ucb1Value);
+        	//System.out.println("exploit = " + exploit);
+        	//System.out.println("explore = " + explore);
+
+        	if (ucb1Value > bestValue)
+        	{
+        		bestValue = ucb1Value;
+        		bestIdx = i;
+        		numBestFound = 1;
+        	}
+        	else if 
+        	(
+        		ucb1Value == bestValue 
+        		&& 
+        		ThreadLocalRandom.current().nextInt() % ++numBestFound == 0
+        	)
+        	{
+        		bestIdx = i;
+        	}
         }
         
         return bestIdx;
@@ -103,11 +105,17 @@ public final class UCB1 implements SelectionStrategy
 	}
 	
 	@Override
+	public int expansionFlags()
+	{
+		return 0;
+	}
+	
+	@Override
 	public void customise(final String[] inputs)
 	{
 		if (inputs.length > 1)
 		{
-			// we have more inputs than just the name of the strategy
+			// We have more inputs than just the name of the strategy
 			for (int i = 1; i < inputs.length; ++i)
 			{
 				final String input = inputs[i];
@@ -119,8 +127,7 @@ public final class UCB1 implements SelectionStrategy
 				}
 				else
 				{
-					System.err.println("UCB1 ignores unknown customization: "
-							+ input);
+					System.err.println("UCB1 ignores unknown customisation: " + input);
 				}
 			}
 		}

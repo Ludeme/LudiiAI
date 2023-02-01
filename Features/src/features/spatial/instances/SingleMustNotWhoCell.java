@@ -1,5 +1,6 @@
 package features.spatial.instances;
 
+import game.Game;
 import game.types.board.SiteType;
 import main.collections.ChunkSet;
 import other.state.State;
@@ -123,7 +124,7 @@ public class SingleMustNotWhoCell extends AtomicProposition
 	//-------------------------------------------------------------------------
 
 	@Override
-	public boolean provesIfTrue(final AtomicProposition other)
+	public boolean provesIfTrue(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -131,14 +132,15 @@ public class SingleMustNotWhoCell extends AtomicProposition
 		if (testedSite() != other.testedSite())
 			return false;
 		
-		// TODO with game-specific knowledge, we can make inferences about the piece types
-		// that cannot be present given that player is not present
+		// If not who is true, we also prove not what for any what owned by the player
+		if (other.stateVectorType() == StateVectorTypes.What && other.negated())
+			return (AtomicProposition.ownedComponentIDs(game, value()).contains(other.value()));
 		
 		return false;
 	}
 
 	@Override
-	public boolean disprovesIfTrue(final AtomicProposition other)
+	public boolean disprovesIfTrue(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -146,14 +148,16 @@ public class SingleMustNotWhoCell extends AtomicProposition
 		if (testedSite() != other.testedSite())
 			return false;
 		
-		// TODO with game-specific knowledge, we can make inferences about the piece types
-		// that cannot be present given that player is not present
+		// If not who is true, we disprove what for any what owned by the player
+		if (other.stateVectorType() == StateVectorTypes.What && !other.negated())
+			return (AtomicProposition.ownedComponentIDs(game, value()).contains(other.value()));
 		
-		return false;
+		// Not containing a specific player disproves that we contain that same specific player
+		return (other.stateVectorType() == StateVectorTypes.Who && other.value() == value());
 	}
 
 	@Override
-	public boolean provesIfFalse(final AtomicProposition other)
+	public boolean provesIfFalse(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -165,15 +169,20 @@ public class SingleMustNotWhoCell extends AtomicProposition
 		if (other.stateVectorType() == StateVectorTypes.Who)
 			return (!other.negated() && value() == other.value());
 		
-		// TODO with game-specific knowledge, we can make inferences about the piece types
-		// that cannot be present given that player is present
+		// If the tested player only owns a single piece type, we also prove what for that piece type
+		if (other.stateVectorType() == StateVectorTypes.What && !other.negated())
+			return (AtomicProposition.playerOnlyOwns(game, value(), other.value()));
+		
+		// We prove not-what for any what not owned by player
+		if (other.stateVectorType() == StateVectorTypes.What && other.negated())
+			return (!AtomicProposition.ownedComponentIDs(game, value()).contains(other.value()));
 		
 		// False means we DO contain a specific player, so we prove not empty
 		return (value() > 0 && other.stateVectorType() == StateVectorTypes.Empty && other.negated());
 	}
 
 	@Override
-	public boolean disprovesIfFalse(final AtomicProposition other)
+	public boolean disprovesIfFalse(final AtomicProposition other, final Game game)
 	{
 		if (graphElementType() != other.graphElementType())
 			return false;
@@ -185,8 +194,13 @@ public class SingleMustNotWhoCell extends AtomicProposition
 		if (other.stateVectorType() == StateVectorTypes.Who)
 			return (other.negated() && value() == other.value());
 		
-		// TODO with game-specific knowledge, we can make inferences about the piece types
-		// that cannot be present given that player is present
+		// If player owns only a single piece type, we disprove not-what for that piece type
+		if (other.stateVectorType() == StateVectorTypes.What && other.negated())
+			return (AtomicProposition.playerOnlyOwns(game, value(), other.value()));
+		
+		// We disprove what for any what not owned by this player
+		if (other.stateVectorType() == StateVectorTypes.What && !other.negated())
+			return (!AtomicProposition.ownedComponentIDs(game, value()).contains(other.value()));
 		
 		// False means we DO contain a specific player, so we disprove empty
 		return (value() > 0 && other.stateVectorType() == StateVectorTypes.Empty && !other.negated());

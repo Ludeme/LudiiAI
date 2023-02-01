@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 
+import features.WeightVector;
 import gnu.trove.list.array.TFloatArrayList;
 import main.collections.FVector;
 
@@ -33,7 +34,7 @@ public class BoostedLinearFunction extends LinearFunction
 	 * @param theta Trainable parameters vector
 	 * @param booster Linear function of which we add the parameters to our trainable parameters
 	 */
-	public BoostedLinearFunction(final FVector theta, final LinearFunction booster)
+	public BoostedLinearFunction(final WeightVector theta, final LinearFunction booster)
 	{
 		super(theta);
 		this.booster = booster;
@@ -46,11 +47,11 @@ public class BoostedLinearFunction extends LinearFunction
 	 *         class, the trainable params plus the effective params of the booster.
 	 */
 	@Override
-	public FVector effectiveParams()
+	public WeightVector effectiveParams()
 	{
-		final FVector params = booster.effectiveParams().copy();
-		params.add(trainableParams());
-		return params;
+		final FVector params = booster.effectiveParams().allWeights().copy();
+		params.add(trainableParams().allWeights());
+		return new WeightVector(params);
 	}
 
 	//-------------------------------------------------------------------------
@@ -63,9 +64,9 @@ public class BoostedLinearFunction extends LinearFunction
 	{
 		try (final PrintWriter writer = new PrintWriter(filepath, "UTF-8"))
 		{
-			for (int i = 0; i < theta.dim(); ++i)
+			for (int i = 0; i < theta.allWeights().dim(); ++i)
 			{
-				writer.println(theta.get(i));
+				writer.println(theta.allWeights().get(i));
 			}
 			
 			for (final String fsf : featureSetFiles)
@@ -74,7 +75,7 @@ public class BoostedLinearFunction extends LinearFunction
 			}
 			
 			writer.println("Effective Params:");
-			final FVector effectiveParams = effectiveParams();
+			final FVector effectiveParams = effectiveParams().allWeights();
 			for (int i = 0; i < effectiveParams.dim(); ++i)
 			{
 				writer.println(effectiveParams.get(i));
@@ -87,6 +88,8 @@ public class BoostedLinearFunction extends LinearFunction
 	}
 	
 	/**
+	 * @param filepath 
+	 * @param booster 
 	 * @return Reads linear function from the given filepath.
 	 */
 	public static BoostedLinearFunction boostedFromFile(final String filepath, final LinearFunction booster)
@@ -131,7 +134,7 @@ public class BoostedLinearFunction extends LinearFunction
 			LinearFunction boosterFunc = booster;
 			if (boosterFunc == null)
 			{
-				// don't have a booster, so create a dummy linear function as booster
+				// Don't have a booster, so create a dummy linear function as booster
 				// such that the total effective params remain the same
 				
 				final TFloatArrayList effectiveParams = new TFloatArrayList();
@@ -158,11 +161,10 @@ public class BoostedLinearFunction extends LinearFunction
 					boosterFloats[i] = effectiveParams.getQuick(i) - floats[i];
 				}
 				
-				boosterFunc = new LinearFunction(FVector.wrap(boosterFloats));
+				boosterFunc = new LinearFunction(new WeightVector(FVector.wrap(boosterFloats)));
 			}
 			
-			final BoostedLinearFunction func = 
-					new BoostedLinearFunction(FVector.wrap(floats), boosterFunc);
+			final BoostedLinearFunction func = new BoostedLinearFunction(new WeightVector(FVector.wrap(floats)), boosterFunc);
 			func.setFeatureSetFile(featureSetFile);
 			
 			return func;

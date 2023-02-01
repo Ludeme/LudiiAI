@@ -9,6 +9,7 @@ import game.equipment.container.Container;
 import gnu.trove.list.array.TIntArrayList;
 import main.Constants;
 import main.collections.FastArrayList;
+import other.RankUtils;
 import other.context.Context;
 import other.context.TempContext;
 import other.move.Move;
@@ -50,6 +51,18 @@ public final class LudiiStateWrapper
 		trial = new Trial(game.game);
 		context = new Context(game.game, trial);
 		game.game.start(context);
+	}
+	
+	/**
+	 * Constructor
+	 * @param gameWrapper
+	 * @param context
+	 */
+	public LudiiStateWrapper(final LudiiGameWrapper gameWrapper, final Context context)
+	{
+		this.game = gameWrapper;
+		trial = context.trial();
+		this.context = context;
 	}
 	
 	/**
@@ -121,6 +134,15 @@ public final class LudiiStateWrapper
 			
 			return sb.toString();
 		}
+	}
+	
+	/**
+	 * Applies the given move
+	 * @param move
+	 */
+	public void applyMove(final Move move)
+	{
+		game.game.apply(context, move);
 	}
 	
 	/**
@@ -201,6 +223,14 @@ public final class LudiiStateWrapper
 	public void reset()
 	{
 		game.game.start(context);
+	}
+	
+	/**
+	 * @return Array of legal Move objects
+	 */
+	public Move[] legalMovesArray()
+	{
+		return game.game.moves(context).moves().toArray(new Move[0]);
 	}
 	
 	/**
@@ -309,6 +339,14 @@ public final class LudiiStateWrapper
 	}
 	
 	/**
+	 * Runs a random playout.
+	 */
+	public void runRandomPlayout()
+	{
+		game.game.playout(context, null, 0.0, null, 0, -1, ThreadLocalRandom.current());
+	}
+	
+	/**
 	 * Estimates a reward for a given player (assumed 0-index player) based on one
 	 * or more random rollouts from the current state.
 	 * 
@@ -325,7 +363,7 @@ public final class LudiiStateWrapper
 		{
 			final TempContext copyContext = new TempContext(context);
 			game.game.playout(copyContext, null, 0.1f, null, 0, playoutCap, ThreadLocalRandom.current());
-			final double[] returns = AIUtils.agentUtilities(copyContext);
+			final double[] returns = RankUtils.agentUtilities(copyContext);
 			sumRewards += returns[player + 1];
 		}
 		
@@ -345,7 +383,7 @@ public final class LudiiStateWrapper
 		if (!isTerminal())
 			return new double[game.numPlayers()];
 		
-		final double[] returns = AIUtils.agentUtilities(context);
+		final double[] returns = RankUtils.agentUtilities(context);
 		return Arrays.copyOfRange(returns, 1, returns.length);
 	}
 	
@@ -363,7 +401,7 @@ public final class LudiiStateWrapper
 		if (!isTerminal())
 			return 0.0;
 		
-		final double[] returns = AIUtils.agentUtilities(context);
+		final double[] returns = RankUtils.agentUtilities(context);
 		return returns[player + 1];
 	}
 	

@@ -13,10 +13,10 @@ import java.util.Map;
 import game.Game;
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
-import main.math.Stats;
+import main.math.statistics.Stats;
 
 /**
- * A summary of results for multiple played games
+ * A summary of results for multiple played games. Thread-safe.
  * 
  * @author Dennis Soemers
  */
@@ -68,7 +68,7 @@ public class ResultsSummary
 		
 		for (int i = 0; i < agents.size(); ++i)
 		{
-			agentPoints[i] = new Stats(agents.get(i) + " points");
+			agentPoints()[i] = new Stats(agents.get(i) + " points");
 			agentGameDurations[i] = new Stats(agents.get(i) + " game durations");
 			
 			for (int p = 1; p <= numPlayers; ++p)
@@ -93,7 +93,7 @@ public class ResultsSummary
 	 * @param gameDuration
 	 * 	Number of moves made in the game
 	 */
-	public void recordResults
+	public synchronized void recordResults
 	(
 		final int[] agentPermutation, 
 		final double[] utilities, 
@@ -102,11 +102,11 @@ public class ResultsSummary
 	{
 		for (int p = 1; p < agentPermutation.length; ++p)
 		{
-			// convert utility from [-1.0, 1.0] to [0.0, 1.0]
+			// Convert utility from [-1.0, 1.0] to [0.0, 1.0]
 			final double points = (utilities[p] + 1.0) / 2.0;
 			final int agentNumber = agentPermutation[p];
 			
-			agentPoints[agentNumber].addSample(points);
+			agentPoints()[agentNumber].addSample(points);
 			agentPointsPerPlayer[agentNumber][p].addSample(points);
 			
 			agentGameDurations[agentNumber].addSample(gameDuration);
@@ -140,7 +140,7 @@ public class ResultsSummary
 	 * @return Score averaged over all games, all agents with name equal to 
 	 * given name.
 	 */
-	public double avgScoreForAgentName(final String agentName)
+	public synchronized double avgScoreForAgentName(final String agentName)
 	{
 		double sumScores = 0.0;
 		int sumNumGames = 0;
@@ -149,9 +149,9 @@ public class ResultsSummary
 		{
 			if (agents.get(i).equals(agentName))
 			{
-				agentPoints[i].measure();
-				sumScores += agentPoints[i].sum();
-				sumNumGames += agentPoints[i].numSamples();
+				agentPoints()[i].measure();
+				sumScores += agentPoints()[i].sum();
+				sumNumGames += agentPoints()[i].n();
 			}
 		}
 		
@@ -164,7 +164,7 @@ public class ResultsSummary
 	 * Generates an intermediate summary of results.
 	 * @return The generated summary
 	 */
-	public String generateIntermediateSummary()
+	public synchronized String generateIntermediateSummary()
 	{
 		final StringBuilder sb = new StringBuilder();
 		
@@ -173,7 +173,7 @@ public class ResultsSummary
 		int totGamesPlayed = 0;
 		for (int i = 0; i < agentPointsPerPlayer.length; ++i)
 		{
-			totGamesPlayed += agentPointsPerPlayer[i][1].numSamples();
+			totGamesPlayed += agentPointsPerPlayer[i][1].n();
 		}
 
 		sb.append("Completed " + totGamesPlayed + " games.\n");
@@ -181,13 +181,24 @@ public class ResultsSummary
 		
 		for (int i = 0; i < agents.size(); ++i)
 		{
-			agentPoints[i].measure();
-			sb.append(agentPoints[i] + "\n");
+			sb.append("Agent " + (i+1) + " (" + agents.get(i) + ")\n");
+			
+			agentPoints()[i].measure();
+			sb.append("Winning score (between 0 and 1) " + agentPoints()[i] + "\n");
 			
 			for (int p = 1; p < agentPointsPerPlayer[i].length; ++p)
 			{
 				agentPointsPerPlayer[i][p].measure();
-				sb.append(agentPointsPerPlayer[i][p] + "\n");
+				sb.append("P" + p + agentPointsPerPlayer[i][p] + "\n");
+			}
+			
+			agentGameDurations[i].measure();
+			sb.append("Game Durations" + agentGameDurations[i] + "\n");
+			
+			for (int p = 1; p < agentGameDurationsPerPlayer[i].length; ++p)
+			{
+				agentGameDurationsPerPlayer[i][p].measure();
+				sb.append("P" + p + agentGameDurationsPerPlayer[i][p] + "\n");
 			}
 			
 			if (i < agents.size() - 1)
@@ -209,7 +220,7 @@ public class ResultsSummary
 	 * 
 	 * @param outFile
 	 */
-	public void writeAlphaRankData(final File outFile)
+	public synchronized void writeAlphaRankData(final File outFile)
 	{
 		try (final PrintWriter writer = new PrintWriter(outFile, "UTF-8"))
 		{
@@ -258,7 +269,14 @@ public class ResultsSummary
 			e.printStackTrace();
 		}
 	}
+
+	//-------------------------------------------------------------------------
+	
+	public synchronized Stats[] agentPoints() 
+	{
+		return agentPoints;
+	}
 	
 	//-------------------------------------------------------------------------
-
+	
 }

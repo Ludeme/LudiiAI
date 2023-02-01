@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Stream;
 
+import features.Feature;
 import features.aspatial.AspatialFeature;
 import features.spatial.SpatialFeature;
 import features.spatial.Walk;
@@ -37,7 +38,7 @@ import other.trial.Trial;
 
 /**
  * NOTE: legacy version, old implementation based on intuition, should be retired in favour
- * of the more principled PropSet implementation.
+ * of the more principled SPatterNet implementation.
  * 
  * A collection of features which can be loaded/saved from/to files, can be instantiated for
  * any game, and has consistent indices per feature (which means it can be used in a consistent
@@ -116,26 +117,30 @@ public class LegacyFeatureSet extends BaseFeatureSet
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * Construct feature set from list of features
-	 * @param features
+	 * Construct feature set from lists of features
+	 * @param aspatialFeatures
+	 * @param spatialFeatures
 	 */
-	public LegacyFeatureSet(final List<SpatialFeature> features)
+	public LegacyFeatureSet(final List<AspatialFeature> aspatialFeatures, final List<SpatialFeature> spatialFeatures)
 	{
-		this.spatialFeatures = new SpatialFeature[features.size()];
+		this.spatialFeatures = new SpatialFeature[spatialFeatures.size()];
 		
 		for (int i = 0; i < this.spatialFeatures.length; ++i)
 		{
-			this.spatialFeatures[i] = features.get(i);
-			this.spatialFeatures[i].setFeatureSetIndex(i);
+			this.spatialFeatures[i] = spatialFeatures.get(i);
+			this.spatialFeatures[i].setSpatialFeatureSetIndex(i);
 		}
 		
-		this.aspatialFeatures = new AspatialFeature[0];		// TODO also include aspatial features
+		this.aspatialFeatures = aspatialFeatures.toArray(new AspatialFeature[aspatialFeatures.size()]);
 		
 		reactiveInstances = null;
 		proactiveInstances = null;
 		
 		reactiveFeatures = null;
 		proactiveFeatures = null;
+		
+		reactiveFeaturesThresholded = null;
+		proactiveFeaturesThresholded = null;
 	}
 	
 	/**
@@ -144,25 +149,37 @@ public class LegacyFeatureSet extends BaseFeatureSet
 	 */
 	public LegacyFeatureSet(final String filename)
 	{
-		SpatialFeature[] tempFeatures;
+		Feature[] tempFeatures;
 		
 		//System.out.println("loading feature set from " + filename);
-		try (Stream<String> stream = Files.lines(Paths.get(filename))){
-			tempFeatures = stream.map(s -> SpatialFeature.fromString(s)).toArray(SpatialFeature[]::new);
+		try (Stream<String> stream = Files.lines(Paths.get(filename)))
+		{
+			tempFeatures = stream.map(s -> Feature.fromString(s)).toArray(Feature[]::new);
 		} 
 		catch (final IOException exception) 
 		{
 			tempFeatures = null;
+			exception.printStackTrace();
 		}
 		
-		this.spatialFeatures = tempFeatures;
+		final List<AspatialFeature> aspatialFeaturesList = new ArrayList<AspatialFeature>();
+		final List<SpatialFeature> spatialFeaturesList = new ArrayList<SpatialFeature>();
 		
-		for (int i = 0; i < spatialFeatures.length; ++i)
+		for (final Feature feature : tempFeatures)
 		{
-			spatialFeatures[i].setFeatureSetIndex(i);
+			if (feature instanceof AspatialFeature)
+			{
+				aspatialFeaturesList.add((AspatialFeature)feature);
+			}
+			else
+			{
+				((SpatialFeature)feature).setSpatialFeatureSetIndex(spatialFeaturesList.size());
+				spatialFeaturesList.add((SpatialFeature)feature);
+			}
 		}
 		
-		this.aspatialFeatures = new AspatialFeature[0];		// TODO also include aspatial features
+		this.aspatialFeatures = aspatialFeaturesList.toArray(new AspatialFeature[aspatialFeaturesList.size()]);
+		this.spatialFeatures = spatialFeaturesList.toArray(new SpatialFeature[spatialFeaturesList.size()]);
 	}
 	
 	//-------------------------------------------------------------------------
@@ -184,6 +201,8 @@ public class LegacyFeatureSet extends BaseFeatureSet
 		// feature generation
 		final Context featureGenContext = new Context(game.get(), new Trial(game.get()));
 		
+		final ProactiveFeaturesKey proactiveKey = new ProactiveFeaturesKey();
+		final ReactiveFeaturesKey reactiveKey = new ReactiveFeaturesKey();
 		for (int i = 0; i < supportedPlayers.length; ++i)
 		{
 			final int player = supportedPlayers[i];
@@ -197,6 +216,9 @@ public class LegacyFeatureSet extends BaseFeatureSet
 							featureGenContext.state().containerStates()[0], 
 							player, 
 							-1, 
+							-1,
+							-1,
+							-1,
 							-1
 						);
 
@@ -209,26 +231,26 @@ public class LegacyFeatureSet extends BaseFeatureSet
 					
 					if (lastFrom >= 0 || lastTo >= 0)	// reactive feature
 					{
-						final ReactiveFeaturesKey key = new ReactiveFeaturesKey(player, lastFrom, lastTo, from, to);
-						List<FeatureInstanceNode> instanceNodes = reactiveInstancesWIP.get(key);
+						reactiveKey.resetData(player, lastFrom, lastTo, from, to);
+						List<FeatureInstanceNode> instanceNodes = reactiveInstancesWIP.get(reactiveKey);
 						
 						if (instanceNodes == null)
 						{
 							instanceNodes = new ArrayList<FeatureInstanceNode>(1);
-							reactiveInstancesWIP.put(key, instanceNodes);
+							reactiveInstancesWIP.put(new ReactiveFeaturesKey(reactiveKey), instanceNodes);
 						}
 						
 						insertInstanceInForest(instance, instanceNodes);
 					}
 					else	// proactive feature
 					{
-						final ProactiveFeaturesKey key = new ProactiveFeaturesKey(player, from, to);
-						List<FeatureInstanceNode> instanceNodes = proactiveInstancesWIP.get(key);
+						proactiveKey.resetData(player, from, to);
+						List<FeatureInstanceNode> instanceNodes = proactiveInstancesWIP.get(proactiveKey);
 						
 						if (instanceNodes == null)
 						{
 							instanceNodes = new ArrayList<FeatureInstanceNode>(1);
-							proactiveInstancesWIP.put(key, instanceNodes);
+							proactiveInstancesWIP.put(new ProactiveFeaturesKey(proactiveKey), instanceNodes);
 						}
 						
 						insertInstanceInForest(instance, instanceNodes);
@@ -389,10 +411,16 @@ public class LegacyFeatureSet extends BaseFeatureSet
 		}
 	}
 	
+	@Override
+	public void closeCache()
+	{
+		activeProactiveFeaturesCache.close();
+	}
+	
 	//-------------------------------------------------------------------------
 	
 	@Override
-	public TIntArrayList getActiveFeatureIndices
+	public TIntArrayList getActiveSpatialFeatureIndices
 	(
 		final State state, 
 		final int lastFrom, 
@@ -522,7 +550,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 	}
 	
 	@Override
-	public List<FeatureInstance> getActiveFeatureInstances
+	public List<FeatureInstance> getActiveSpatialFeatureInstances
 	(
 		final State state, 
 		final int lastFrom, 
@@ -594,7 +622,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 	)
 	{
 		final TIntArrayList activeFeatureIndices = 
-				getActiveFeatureIndices(context.state(), lastFrom, lastTo, from, to, player, thresholded);
+				getActiveSpatialFeatureIndices(context.state(), lastFrom, lastTo, from, to, player, thresholded);
 		final List<SpatialFeature> activeFeatures = new ArrayList<SpatialFeature>(activeFeatureIndices.size());
 		
 		final TIntIterator it = activeFeatureIndices.iterator();
@@ -642,6 +670,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 		final int[] lastFroms = lastFrom >= 0 ? new int[]{-1, lastFrom} : new int[]{-1};
 		final int[] lastTos = lastTo >= 0 ? new int[]{-1, lastTo} : new int[]{-1};
 		
+		final ReactiveFeaturesKey reactiveKey = new ReactiveFeaturesKey();
 		if (lastFrom >= 0 || lastTo >= 0)
 		{
 			for (int i = 0; i < lastFroms.length; ++i)
@@ -662,19 +691,10 @@ public class LegacyFeatureSet extends BaseFeatureSet
 							
 							if (lastToPos >= 0 || lastFromPos >= 0)
 							{
-								// reactive instances
-								final FastFeatureInstanceNode[] nodes = 
-										reactiveInstances.get
-										(
-											new ReactiveFeaturesKey
-											(
-												player, 
-												lastFromPos,
-												lastToPos,
-												fromPos, 
-												toPos
-											)
-										);
+								// Reactive instances
+								reactiveKey.resetData(player, lastFromPos, lastToPos, fromPos, toPos);
+								
+								final FastFeatureInstanceNode[] nodes = reactiveInstances.get(reactiveKey);
 								
 								if (nodes != null)
 								{
@@ -687,6 +707,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 			}
 		}
 		
+		final ProactiveFeaturesKey proactiveKey = new ProactiveFeaturesKey();
 		for (int k = 0; k < froms.length; ++k)
 		{
 			final int fromPos = froms[k];
@@ -697,17 +718,9 @@ public class LegacyFeatureSet extends BaseFeatureSet
 
 				if (toPos >= 0 || fromPos >= 0)
 				{
-					// proactive instances
-					final FastFeatureInstanceNode[] nodes = 
-							proactiveInstances.get
-							(
-								new ProactiveFeaturesKey
-								(
-									player,
-									fromPos,
-									toPos
-								)
-							);
+					// Proactive instances
+					proactiveKey.resetData(player, fromPos, toPos);
+					final FastFeatureInstanceNode[] nodes = proactiveInstances.get(proactiveKey);
 
 					if (nodes != null)
 					{
@@ -757,6 +770,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 		else
 			featuresMap = proactiveFeatures;
 		
+		final ProactiveFeaturesKey key = new ProactiveFeaturesKey();
 		for (int k = 0; k < froms.length; ++k)
 		{
 			final int fromPos = froms[k];
@@ -767,16 +781,8 @@ public class LegacyFeatureSet extends BaseFeatureSet
 
 				if (toPos >= 0 || fromPos >= 0)
 				{
-					final FastFeaturesNode[] nodes = 
-							featuresMap.get
-							(
-								new ProactiveFeaturesKey
-								(
-										mover,
-										fromPos,
-										toPos
-								)
-							);
+					key.resetData(mover, fromPos, toPos);
+					final FastFeaturesNode[] nodes = featuresMap.get(key);
 					
 					if (nodes != null)
 					{
@@ -927,18 +933,9 @@ public class LegacyFeatureSet extends BaseFeatureSet
 		final List<FastFeaturesNode[]> outFeaturesNodes
 	)
 	{
-		final FastFeaturesNode[] nodes = 
-				featuresMap.get
-				(
-					new ReactiveFeaturesKey
-					(
-						mover,
-						lastFrom,
-						lastTo,
-						from,
-						to
-					)
-				);
+		final ReactiveFeaturesKey key = new ReactiveFeaturesKey();
+		key.resetData(mover, lastFrom, lastTo, from, to);
+		final FastFeaturesNode[] nodes = featuresMap.get(key);
 
 		if (nodes != null)
 			outFeaturesNodes.add(nodes);
@@ -1196,12 +1193,12 @@ public class LegacyFeatureSet extends BaseFeatureSet
 				@Override
 				public int compare(FeatureInstancePair o1, FeatureInstancePair o2) {
 					final float score1 = Math.max(
-							absWeights.get(o1.a.feature().featureSetIndex()), 
-							absWeights.get(o1.b.feature().featureSetIndex()));
+							absWeights.get(o1.a.feature().spatialFeatureSetIndex()), 
+							absWeights.get(o1.b.feature().spatialFeatureSetIndex()));
 					
 					final float score2 = Math.max(
-							absWeights.get(o2.a.feature().featureSetIndex()), 
-							absWeights.get(o2.b.feature().featureSetIndex()));
+							absWeights.get(o2.a.feature().spatialFeatureSetIndex()), 
+							absWeights.get(o2.b.feature().spatialFeatureSetIndex()));
 					
 					if (score1 == score2)
 					{
@@ -1273,7 +1270,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 			
 			if (allowedRotations == null)
 			{
-				allowedRotations = Walk.allGameRotations(game.get());
+				allowedRotations = new TFloatArrayList(Walk.allGameRotations(game.get()));
 			}
 			
 			for (int i = 0; i < allowedRotations.size(); ++i)
@@ -1303,7 +1300,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 			// and our new feature
 			newFeatureList.add(newFeature);
 			
-			return new LegacyFeatureSet(newFeatureList);
+			return new LegacyFeatureSet(Arrays.asList(aspatialFeatures), newFeatureList);
 		}
 		
 		return null;
@@ -1544,7 +1541,9 @@ public class LegacyFeatureSet extends BaseFeatureSet
 	public void printProactiveFeaturesTree(final int player, final int from, final int to)
 	{
 		System.out.println("---");
-		proactiveFeatures.get(new ProactiveFeaturesKey(player, from, to))[0].print(0);
+		final ProactiveFeaturesKey key = new ProactiveFeaturesKey();
+		key.resetData(player, from, to);
+		proactiveFeatures.get(key)[0].print(0);
 		System.out.println("---");
 	}
 	
@@ -1768,7 +1767,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 			
 			// we'll definitely need the index of the instance contained 
 			// in the node
-			featureIndicesList.add(instanceNode.featureInstance.feature().featureSetIndex());
+			featureIndicesList.add(instanceNode.featureInstance.feature().spatialFeatureSetIndex());
 			
 			for (final FastFeatureInstanceNode instanceChild : instanceChildren)
 			{
@@ -1778,7 +1777,7 @@ public class LegacyFeatureSet extends BaseFeatureSet
 				{
 					// this child does not need to exist anymore, just absorb
 					// its feature index
-					final int featureIdx = instance.feature().featureSetIndex();
+					final int featureIdx = instance.feature().spatialFeatureSetIndex();
 					
 					if (!featureIndicesList.contains(featureIdx))
 					{

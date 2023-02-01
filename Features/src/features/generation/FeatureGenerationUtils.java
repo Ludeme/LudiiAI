@@ -1,11 +1,12 @@
 package features.generation;
 
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 import features.spatial.elements.FeatureElement.ElementType;
 import game.Game;
 import game.equipment.component.Component;
+import game.equipment.other.Regions;
 import game.util.directions.DirectionFacing;
 import game.util.directions.RelativeDirection;
 import gnu.trove.list.array.TFloatArrayList;
@@ -291,24 +292,28 @@ public class FeatureGenerationUtils
 	
 	/**
 	 * @param game
-	 * @return A list of all feature element types that may be useful in the given game
+	 * @return A set of all feature element types that may be useful in the given game
 	 */
-	public static List<ElementType> usefulElementTypes(final Game game)
+	public static EnumSet<ElementType> usefulElementTypes(final Game game)
 	{
-		final ArrayList<ElementType> elementTypes = new ArrayList<ElementType>();
-		
-		elementTypes.add(ElementType.Empty);
-		elementTypes.add(ElementType.Friend);
-		elementTypes.add(ElementType.Off);
+		final EnumSet<ElementType> elementTypes = EnumSet.of(ElementType.Empty, ElementType.Friend, ElementType.Off);
 		
 		if (game.players().count() > 1)
 		{
 			elementTypes.add(ElementType.Enemy);
 		}
 		
+		final Component[] components = game.equipment().components();
+		
+//		if (components.length > 1)		// >1 instead of >=1 because we have dummy entry of null at index 0
+//		{
+//			elementTypes.add(ElementType.LineOfSightOrth);
+//			elementTypes.add(ElementType.LineOfSightDiag);
+//		}
+		
 		final int[] componentsPerPlayer = new int[game.players().count() + 1];
 		
-		for (final Component component : game.equipment().components())
+		for (final Component component : components)
 		{
 			if (component != null && component.owner() <= game.players().count())
 			{
@@ -338,7 +343,24 @@ public class FeatureGenerationUtils
 			elementTypes.add(ElementType.Connectivity);
 		}
 		
-		elementTypes.trimToSize();
+		if (game.distancesToRegions() != null)
+		{
+			final Regions[] regions = game.equipment().regions();
+		
+			if (regions.length > 0)
+			{
+				for (int i = 0; i < regions.length; ++i)
+				{
+					if (game.distancesToRegions()[i] != null)
+					{
+						// We have at least one region with meaningful distances, so RegionProximity is relevant
+						elementTypes.add(ElementType.RegionProximity);
+						break;
+					}
+				}
+			}
+		}
+		
 		return elementTypes;
 	}
 	

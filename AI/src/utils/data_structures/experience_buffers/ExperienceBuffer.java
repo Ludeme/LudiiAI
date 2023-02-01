@@ -1,6 +1,8 @@
 package utils.data_structures.experience_buffers;
 
-import expert_iteration.ExItExperience;
+import java.util.List;
+
+import training.expert_iteration.ExItExperience;
 
 /**
  * Interface for experience buffers. Declares common methods
@@ -25,13 +27,19 @@ public interface ExperienceBuffer
 	 * @return A batch of the given batch size, sampled uniformly with 
 	 * replacement.
 	 */
-	public ExItExperience[] sampleExperienceBatch(final int batchSize);
+	public List<ExItExperience> sampleExperienceBatch(final int batchSize);
 	
 	/**
 	 * @param batchSize
 	 * @return Sample of batchSize tuples of experience, sampled uniformly
 	 */
-	public ExItExperience[] sampleExperienceBatchUniformly(final int batchSize);
+	public List<ExItExperience> sampleExperienceBatchUniformly(final int batchSize);
+	
+	/**
+	 * @return Return the backing array containing ALL experience (including likely
+	 * null entries if the buffer was not completely filled).
+	 */
+	public ExItExperience[] allExperience();
 	
 	/**
 	 * Writes this complete buffer to a binary file

@@ -3,12 +3,15 @@ package features.generation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
+import features.aspatial.AspatialFeature;
+import features.aspatial.InterceptFeature;
+import features.aspatial.PassMoveFeature;
+import features.aspatial.SwapMoveFeature;
 import features.spatial.AbsoluteFeature;
 import features.spatial.Pattern;
 import features.spatial.RelativeFeature;
@@ -19,18 +22,19 @@ import features.spatial.elements.FeatureElement.ElementType;
 import features.spatial.elements.RelativeFeatureElement;
 import game.Game;
 import game.equipment.component.Component;
+import game.equipment.other.Regions;
 import game.types.state.GameType;
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;
 
 /**
- * Generates "atomic" features for a game. We say that a feature is atomic if and only if
- * it consists of:
- * 
- * 	- Exactly 0 or 1 restrictions (Walk + element type)
+ * Generates "atomic" features for a game. We say that a spatial feature is atomic if 
+ * and only if it consists of exactly 0 or 1 restrictions (Walk + element type)
  * 
  * The maximum size any Walk is allowed to have can be specified on 
  * instantiation of the generator
+ * 
+ * Any relevant aspatial features are also included.
  * 
  * @author Dennis Soemers
  */
@@ -42,8 +46,11 @@ public class AtomicFeatureGenerator
 	/** Reference to our game */
 	protected final Game game;
 
-	/** Generated features */
-	protected final List<SpatialFeature> features;
+	/** Generated aspatial features */
+	protected final List<AspatialFeature> aspatialFeatures;
+	
+	/** Generated spatial features */
+	protected final List<SpatialFeature> spatialFeatures;
 
 	//-------------------------------------------------------------------------
 	
@@ -64,21 +71,23 @@ public class AtomicFeatureGenerator
 	)
 	{
 		this.game = game;
-		this.features = simplifyFeatureSet(generateFeatures(maxWalkSize, maxStraightWalkSize));
-		features.sort(new Comparator<SpatialFeature>() 
+		
+		// First generate spatial features
+		spatialFeatures = SpatialFeature.simplifySpatialFeaturesList(game, generateFeatures(maxWalkSize, maxStraightWalkSize));
+		spatialFeatures.sort(new Comparator<SpatialFeature>() 
 		{
 
 			@Override
 			public int compare(final SpatialFeature o1, final SpatialFeature o2) 
 			{
-				final List<FeatureElement> els1 = o1.pattern().featureElements();
-				final List<FeatureElement> els2 = o2.pattern().featureElements();
+				final FeatureElement[] els1 = o1.pattern().featureElements();
+				final FeatureElement[] els2 = o2.pattern().featureElements();
 				
-				if (els1.size() < els2.size())
+				if (els1.length < els2.length)
 				{
 					return -1;
 				}
-				else if (els1.size() > els2.size())
+				else if (els1.length > els2.length)
 				{
 					return 1;
 				}
@@ -91,9 +100,7 @@ public class AtomicFeatureGenerator
 					{
 						if (el instanceof RelativeFeatureElement)
 						{
-							sumWalkLengths1 += 
-									((RelativeFeatureElement) el)
-									.walk().steps().size();
+							sumWalkLengths1 += ((RelativeFeatureElement) el).walk().steps().size();
 						}
 					}
 					
@@ -101,9 +108,7 @@ public class AtomicFeatureGenerator
 					{
 						if (el instanceof RelativeFeatureElement)
 						{
-							sumWalkLengths2 += 
-									((RelativeFeatureElement) el)
-									.walk().steps().size();
+							sumWalkLengths2 += ((RelativeFeatureElement) el).walk().steps().size();
 						}
 					}
 					
@@ -112,16 +117,36 @@ public class AtomicFeatureGenerator
 			}
 			
 		});
+		
+		aspatialFeatures = new ArrayList<AspatialFeature>();
+		
+		// Intercept feature always considered relevant
+		aspatialFeatures.add(InterceptFeature.instance());
+		
+		// Pass feature always considered relevant
+		aspatialFeatures.add(PassMoveFeature.instance());
+		
+		// Swap feature only relevant if game uses swap rule
+		if ((game.gameFlags() & GameType.UsesSwapRule) != 0L)
+			aspatialFeatures.add(SwapMoveFeature.instance());
 	}
 	
 	//-------------------------------------------------------------------------
 	
 	/**
-	 * @return Generated features
+	 * @return Generated aspatial features
 	 */
-	public List<SpatialFeature> getFeatures()
+	public List<AspatialFeature> getAspatialFeatures()
 	{
-		return features;
+		return aspatialFeatures;
+	}
+	
+	/**
+	 * @return Generated spatial features
+	 */
+	public List<SpatialFeature> getSpatialFeatures()
+	{
+		return spatialFeatures;
 	}
 	
 	//-------------------------------------------------------------------------
@@ -150,8 +175,8 @@ public class AtomicFeatureGenerator
 		generatedFeatures.addAll(emptyFeatures);
 		
 		final TIntArrayList connectivities = game.board().topology().trueOrthoConnectivities(game);
-		final TFloatArrayList allGameRotations = Walk.allGameRotations(game);
-		final List<ElementType> elementTypes = FeatureGenerationUtils.usefulElementTypes(game);
+		final TFloatArrayList allGameRotations = new TFloatArrayList(Walk.allGameRotations(game));
+		final EnumSet<ElementType> elementTypes = FeatureGenerationUtils.usefulElementTypes(game);
 		
 		elementTypes.add(ElementType.LastFrom);
 		elementTypes.add(ElementType.LastTo);
@@ -192,6 +217,31 @@ public class AtomicFeatureGenerator
 						else if (elementType == ElementType.Connectivity)
 						{
 							itemIndices.addAll(connectivities);
+						}
+						else if (elementType == ElementType.RegionProximity)
+						{
+							if (walkSize > 0)		// RegionProximity test on anchor is useless
+							{
+								// Only include regions for which we actually have distance tables
+								final Regions[] regions = game.equipment().regions();
+								
+								for (int i = 0; i < regions.length; ++i)
+								{
+									if (game.distancesToRegions()[i] != null)
+										itemIndices.add(i);
+								}
+							}
+						}
+						else if (elementType == ElementType.LineOfSightOrth || elementType == ElementType.LineOfSightDiag)
+						{
+							final Component[] components = game.equipment().components();
+							for (int i = 1; i < components.length; ++i)
+							{
+								if (components[i] != null)
+								{
+									itemIndices.add(i);
+								}
+							}
 						}
 						else
 						{
@@ -338,151 +388,6 @@ public class AtomicFeatureGenerator
 		}
 		
 		return allWalks;
-	}
-	
-	//-------------------------------------------------------------------------
-	
-	/**
-	 * Simplifies the feature set given by the list of features by:
-	 * 
-	 * 	1) If there are two different features (which may not yet allow
-	 * 	reflection), such that they would become equal if one of them were
-	 * 	reflected; keeps only one of them (with reflection allowed).
-	 * 
-	 * 	2) If there are two different features (which may not yet allow all
-	 * 	rotations), such that they would become equal if one of them were
-	 * 	rotated by a certain amount; keeps only one of them (with the required
-	 * 	rotation allowed)
-	 * 
-	 * @param featuresIn
-	 * @return
-	 */
-	private List<SpatialFeature> simplifyFeatureSet(final List<SpatialFeature> featuresIn)
-	{
-		final List<SpatialFeature> simplified = new ArrayList<SpatialFeature>(featuresIn.size());
-		
-		final Map<Object, RotRefInvariantFeature> featuresToKeep = 
-				new HashMap<Object, RotRefInvariantFeature>();
-		
-		final TFloatArrayList rotations = Walk.allGameRotations(game);
-		final boolean[] reflections = {true, false};
-		
-		for (final SpatialFeature feature : featuresIn)
-		{
-			boolean shouldAddFeature = true;
-			
-			for (int i = 0; i < rotations.size(); ++i)
-			{
-				final float rotation = rotations.get(i);
-				
-				for (int j = 0; j < reflections.length; ++j)
-				{
-					final boolean reflect = reflections[j];
-					
-					SpatialFeature rotatedFeature = feature.rotatedCopy(rotation);
-					
-					if (reflect)
-					{
-						rotatedFeature = rotatedFeature.reflectedCopy();
-					}
-					
-					rotatedFeature.normalise(game);
-					final RotRefInvariantFeature wrapped = new RotRefInvariantFeature(rotatedFeature);
-					
-					if (featuresToKeep.containsKey(wrapped))
-					{
-						shouldAddFeature = false; 
-						
-						final SpatialFeature keepFeature = featuresToKeep.remove(wrapped).feature;
-						
-						// make sure the feature that we decide to keep also
-						// allows for the necessary rotation
-						final float requiredRot = rotation == 0.f ? 0.f : 1.f - rotation;
-						
-						if (keepFeature.pattern().allowedRotations() != null)
-						{
-							if (!keepFeature.pattern().allowedRotations().contains(requiredRot))
-							{
-								final TFloatArrayList allowedRotations = new TFloatArrayList();
-								allowedRotations.addAll
-								(
-									keepFeature.pattern().allowedRotations()
-								);
-								allowedRotations.add(requiredRot);
-								keepFeature.pattern().setAllowedRotations(allowedRotations);
-								keepFeature.pattern().allowedRotations().sort();
-								keepFeature.normalise(game);
-							}
-						}
-						
-						final RotRefInvariantFeature wrappedKeep = new RotRefInvariantFeature(keepFeature);
-						featuresToKeep.put(wrappedKeep, wrappedKeep);
-						/*System.out.println("using " + keepFeature + 
-								" instead of " + feature);*/
-						
-						break;
-					}
-				}
-				
-				if (!shouldAddFeature)
-				{
-					break;
-				}
-			}
-			
-			if (shouldAddFeature)
-			{
-				final RotRefInvariantFeature wrapped = new RotRefInvariantFeature(feature);
-				featuresToKeep.put(wrapped, wrapped);
-			}
-		}
-		
-		for (final RotRefInvariantFeature feature : featuresToKeep.values())
-		{
-			simplified.add(feature.feature);
-		}
-		
-		return simplified;
-	}
-	
-	//-------------------------------------------------------------------------
-	
-	/**
-	 * Wrapper around a feature, with equals() and hashCode() functions that
-	 * ignore rotation / reflection permissions in feature/pattern.
-	 * 
-	 * @author Dennis Soemers
-	 */
-	private class RotRefInvariantFeature
-	{
-		/** Wrapped Feature */
-		protected SpatialFeature feature;
-		
-		/**
-		 * Constructor
-		 * @param feature
-		 */
-		public RotRefInvariantFeature(final SpatialFeature feature)
-		{
-			this.feature = feature;
-		}
-		
-		@Override
-		public boolean equals(final Object other)
-		{
-			if (!(other instanceof RotRefInvariantFeature))
-			{
-				return false;
-			}
-			
-			return feature.equalsIgnoreRotRef(((RotRefInvariantFeature) other).feature);
-		}
-		
-		@Override
-		public int hashCode()
-		{
-			return feature.hashCodeIgnoreRotRef();
-		}
 	}
 	
 	//-------------------------------------------------------------------------

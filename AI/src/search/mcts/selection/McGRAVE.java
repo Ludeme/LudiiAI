@@ -3,9 +3,10 @@ package search.mcts.selection;
 import java.util.concurrent.ThreadLocalRandom;
 
 import other.move.Move;
+import other.state.State;
 import search.mcts.MCTS;
 import search.mcts.MCTS.MoveKey;
-import search.mcts.backpropagation.Backpropagation;
+import search.mcts.backpropagation.BackpropagationStrategy;
 import search.mcts.nodes.BaseNode;
 import search.mcts.nodes.BaseNode.NodeStatistics;
 
@@ -70,12 +71,13 @@ public class McGRAVE implements SelectionStrategy
         int numBestFound = 0;
         
         final int numChildren = current.numLegalMoves();
-        final int mover = current.contextRef().state().mover();
-        final double unvisitedValueEstimate = current.valueEstimateUnvisitedChildren(mover, current.contextRef().state());
-        
+        final State state = current.contextRef().state();
+        final int moverAgent = state.playerToAgent(state.mover());
+        final double unvisitedValueEstimate = current.valueEstimateUnvisitedChildren(moverAgent);
+
         if (currentRefNode.get() == null || current.numVisits() > ref || current.parent() == null)
         	currentRefNode.set(current);
-        
+
         //System.out.println("selecting for current node = " + current + ". Mover = " + current.contextRef().state().mover());
 
         for (int i = 0; i < numChildren; ++i) 
@@ -84,7 +86,7 @@ public class McGRAVE implements SelectionStrategy
         	final double meanScore;
         	final double meanAMAF;
         	final double beta;
-        	
+
         	if (child == null)
         	{
         		meanScore = unvisitedValueEstimate;
@@ -93,43 +95,55 @@ public class McGRAVE implements SelectionStrategy
         	}
         	else
         	{
-        		meanScore = child.averageScore(mover, current.contextRef().state());
+        		meanScore = child.exploitationScore(moverAgent);
         		final Move move = child.parentMove();
         		final NodeStatistics graveStats = currentRefNode.get().graveStats(new MoveKey(move, current.contextRef().trial().numMoves()));
 //        		if (graveStats == null)
 //        		{
 //        			System.out.println("currentRefNode = " + currentRefNode.get());
 //        			System.out.println("stats for " + new MoveKey(move, current.contextRef().trial().numMoves()) + " in " + currentRefNode.get() + " = " + graveStats);
-//	        		System.out.println("child visits = " + child.numVisits());
-//	        		System.out.println("current.who = " + current.contextRef().containerState(0).cloneWho().toChunkString());
-//	        		System.out.println("current legal actions = " + Arrays.toString(((Node) current).legalActions()));
-//	        		System.out.println("current context legal moves = " + current.contextRef().activeGame().moves(current.contextRef()));
+//        			System.out.println("child visits = " + child.numVisits());
+//        			System.out.println("current.who = " + current.contextRef().containerState(0).cloneWho().toChunkString());
+//        			System.out.println("current legal actions = " + Arrays.toString(((Node) current).legalActions()));
+//        			System.out.println("current context legal moves = " + current.contextRef().activeGame().moves(current.contextRef()));
 //        		}
-        		final double graveScore = graveStats.accumulatedScore;
-        		final int graveVisits = graveStats.visitCount;
-        		final int childVisits = child.numVisits();
-        		meanAMAF = graveScore / graveVisits;
-        		beta = graveVisits / (graveVisits + childVisits + bias * graveVisits * childVisits);
+        		
+        		if (graveStats == null)
+        		{
+        			// In single-threaded MCTS this should always be a bug, 
+        			// but in multi-threaded MCTS it can happen
+        			meanAMAF = 0.0;
+        			beta = 0.0;
+        		}
+        		else
+        		{
+        			final double graveScore = graveStats.accumulatedScore;
+	        		final int graveVisits = graveStats.visitCount;
+	        		final int childVisits = child.numVisits() + child.numVirtualVisits();
+	        		meanAMAF = graveScore / graveVisits;
+	        		beta = graveVisits / (graveVisits + childVisits + bias * graveVisits * childVisits);
+        		}
         	}
-        	
+
         	final double graveValue = (1.0 - beta) * meanScore + beta * meanAMAF;
-            
-            if (graveValue > bestValue)
-            {
-                bestValue = graveValue;
-                bestIdx = i;
-                numBestFound = 1;
-            }
-            else if 
-            (
-            	graveValue == bestValue && 
-            	ThreadLocalRandom.current().nextInt() % ++numBestFound == 0
-            )
-            {
-            	bestIdx = i;
-            }
+
+        	if (graveValue > bestValue)
+        	{
+        		bestValue = graveValue;
+        		bestIdx = i;
+        		numBestFound = 1;
+        	}
+        	else if 
+        	(
+        		graveValue == bestValue 
+        		&& 
+        		ThreadLocalRandom.current().nextInt() % ++numBestFound == 0
+        	)
+        	{
+        		bestIdx = i;
+        	}
         }
-        
+
         // This can help garbage collector to clean up a bit more easily
         if (current.childForNthLegalMove(bestIdx) == null)
         	currentRefNode.set(null);
@@ -142,7 +156,13 @@ public class McGRAVE implements SelectionStrategy
 	@Override
 	public int backpropFlags()
 	{
-		return Backpropagation.GRAVE_STATS;
+		return BackpropagationStrategy.GRAVE_STATS;
+	}
+	
+	@Override
+	public int expansionFlags()
+	{
+		return 0;
 	}
 
 	@Override
